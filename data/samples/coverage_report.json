@@ -1,0 +1,146 @@
+[
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "date_slips",
+    "count": 10129,
+    "denominator": 33762,
+    "percentage": 30.001,
+    "target_proportion": 0.3
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "full_acceptance",
+    "count": 6650,
+    "denominator": 9500,
+    "percentage": 70.0,
+    "target_proportion": 0.7
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "full_rejection",
+    "count": 760,
+    "denominator": 9500,
+    "percentage": 8.0,
+    "target_proportion": 0.08
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "multiple_revisions",
+    "count": 800,
+    "denominator": 10000,
+    "percentage": 8.0,
+    "target_proportion": 0.08
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "on_time_promises",
+    "count": 23633,
+    "denominator": 33762,
+    "percentage": 69.999,
+    "target_proportion": 0.7
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "partial_acceptance",
+    "count": 2090,
+    "denominator": 9500,
+    "percentage": 22.0,
+    "target_proportion": 0.22
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "price_changes",
+    "count": 2026,
+    "denominator": 33762,
+    "percentage": 6.001,
+    "target_proportion": 0.06
+  },
+  {
+    "scale": "full",
+    "seed": 20261022,
+    "category": "supplier_silence",
+    "count": 500,
+    "denominator": 10000,
+    "percentage": 5.0,
+    "target_proportion": 0.05
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "date_slips",
+    "count": 199,
+    "denominator": 663,
+    "percentage": 30.015,
+    "target_proportion": 0.3
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "full_acceptance",
+    "count": 133,
+    "denominator": 190,
+    "percentage": 70.0,
+    "target_proportion": 0.7
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "full_rejection",
+    "count": 15,
+    "denominator": 190,
+    "percentage": 7.895,
+    "target_proportion": 0.08
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "multiple_revisions",
+    "count": 16,
+    "denominator": 200,
+    "percentage": 8.0,
+    "target_proportion": 0.08
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "on_time_promises",
+    "count": 464,
+    "denominator": 663,
+    "percentage": 69.985,
+    "target_proportion": 0.7
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "partial_acceptance",
+    "count": 42,
+    "denominator": 190,
+    "percentage": 22.105,
+    "target_proportion": 0.22
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "price_changes",
+    "count": 40,
+    "denominator": 663,
+    "percentage": 6.033,
+    "target_proportion": 0.06
+  },
+  {
+    "scale": "starter",
+    "seed": 20261022,
+    "category": "supplier_silence",
+    "count": 10,
+    "denominator": 200,
+    "percentage": 5.0,
+    "target_proportion": 0.05
+  }
+]

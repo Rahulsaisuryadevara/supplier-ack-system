@@ -1,0 +1,230 @@
+{
+  "acknowledgement_metrics": {
+    "ack_coverage_pct": 95.0,
+    "acknowledged_po_count": 190,
+    "average_current_date_slip_days": 1.6848,
+    "current_promised_line_count": 663,
+    "latest_acknowledgement_count": 190,
+    "partial_acceptance_count": 42,
+    "partial_acceptance_pct": 22.1053,
+    "purchase_order_count": 200,
+    "revision_count_histogram": {
+      "0": 10,
+      "1": 174,
+      "2": 11,
+      "3": 2,
+      "4": 3
+    }
+  },
+  "change_workflow": {
+    "approval_decision_distribution": {
+      "APPROVED": 75,
+      "ESCALATED": 42,
+      "PENDING": 10,
+      "REJECTED": 1
+    },
+    "change_counts_by_type": {
+      "date": 28,
+      "price": 40,
+      "quantity": 18
+    },
+    "escalated_change_count": 42,
+    "escalation_reasons_by_threshold": {
+      "DATE_SLIP_DAYS": 9,
+      "PRICE_CHANGE_PCT": 24,
+      "QUANTITY_CHANGE_PCT": 9
+    },
+    "operations_manager_review_count": 42,
+    "silence_chase_count": 10
+  },
+  "config_source": "config/generator_config.yaml",
+  "coverage_report": [
+    {
+      "category": "date_slips",
+      "count": 10129,
+      "denominator": 33762,
+      "percentage": 30.001,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.3
+    },
+    {
+      "category": "full_acceptance",
+      "count": 6650,
+      "denominator": 9500,
+      "percentage": 70.0,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.7
+    },
+    {
+      "category": "full_rejection",
+      "count": 760,
+      "denominator": 9500,
+      "percentage": 8.0,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.08
+    },
+    {
+      "category": "multiple_revisions",
+      "count": 800,
+      "denominator": 10000,
+      "percentage": 8.0,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.08
+    },
+    {
+      "category": "on_time_promises",
+      "count": 23633,
+      "denominator": 33762,
+      "percentage": 69.999,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.7
+    },
+    {
+      "category": "partial_acceptance",
+      "count": 2090,
+      "denominator": 9500,
+      "percentage": 22.0,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.22
+    },
+    {
+      "category": "price_changes",
+      "count": 2026,
+      "denominator": 33762,
+      "percentage": 6.001,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.06
+    },
+    {
+      "category": "supplier_silence",
+      "count": 500,
+      "denominator": 10000,
+      "percentage": 5.0,
+      "scale": "full",
+      "seed": 20261022,
+      "target_proportion": 0.05
+    },
+    {
+      "category": "date_slips",
+      "count": 199,
+      "denominator": 663,
+      "percentage": 30.015,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.3
+    },
+    {
+      "category": "full_acceptance",
+      "count": 133,
+      "denominator": 190,
+      "percentage": 70.0,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.7
+    },
+    {
+      "category": "full_rejection",
+      "count": 15,
+      "denominator": 190,
+      "percentage": 7.895,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.08
+    },
+    {
+      "category": "multiple_revisions",
+      "count": 16,
+      "denominator": 200,
+      "percentage": 8.0,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.08
+    },
+    {
+      "category": "on_time_promises",
+      "count": 464,
+      "denominator": 663,
+      "percentage": 69.985,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.7
+    },
+    {
+      "category": "partial_acceptance",
+      "count": 42,
+      "denominator": 190,
+      "percentage": 22.105,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.22
+    },
+    {
+      "category": "price_changes",
+      "count": 40,
+      "denominator": 663,
+      "percentage": 6.033,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.06
+    },
+    {
+      "category": "supplier_silence",
+      "count": 10,
+      "denominator": 200,
+      "percentage": 5.0,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.05
+    }
+  ],
+  "distributions": {
+    "lines_per_purchase_order": {
+      "mean": 3.955,
+      "median": 4.0,
+      "p90": 6.0
+    },
+    "reliability_on_time_pearson_correlation": 0.9459,
+    "requested_quantity": {
+      "mean": 447.187,
+      "median": 327.427,
+      "p90": 950.309
+    },
+    "supplier_lead_time_days": {
+      "mean": 28.975,
+      "median": 21.0,
+      "p90": 65.1
+    }
+  },
+  "event_counts": {
+    "acknowledgement_plus_change_request_rows": 300,
+    "acknowledgement_rows": 214,
+    "change_request_rows": 86
+  },
+  "row_counts": {
+    "acknowledgement_lines": 873,
+    "acknowledgements": 214,
+    "actors": 55,
+    "approvals": 128,
+    "carriers": 10,
+    "change_requests": 86,
+    "entity_event": 675,
+    "items": 50,
+    "notifications": 10,
+    "po_lines": 791,
+    "promise_dates": 669,
+    "purchase_orders": 200,
+    "suppliers": 40,
+    "warehouses": 4
+  },
+  "scale": "starter",
+  "seed": 20261022,
+  "supplier_silence_report_rows": 10,
+  "target_event_count": 300
+}

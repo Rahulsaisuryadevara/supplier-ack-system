@@ -1,94 +1,217 @@
-# Every generation and business-rule knob lives here. Starter and full scales use
-# the same generator implementation; only scale parameters differ.
+# Seeded synthetic data generation. The same generator code path serves both scales.
 seed: 20261022
 
 scales:
   starter:
+    supplier_count: 40
     po_count: 200
     event_count: 300
+    item_count: 50
+    warehouse_count: 4
+    carrier_count: 10
+    planner_count: 6
+    carrier_warehouse_operator_count: 4
+    logistics_analyst_count: 3
+    operations_manager_count: 2
   full:
+    supplier_count: 200
     po_count: 10000
     event_count: 15000
+    item_count: 50
+    warehouse_count: 8
+    carrier_count: 20
+    planner_count: 12
+    carrier_warehouse_operator_count: 20
+    logistics_analyst_count: 6
+    operations_manager_count: 4
 
+# Changes within the planner thresholds are approved at planner level.
+# Changes outside those thresholds require operations_manager approval.
+# Hard limits are deterministic reject rules after the required escalation.
 approval_thresholds:
-  # Absolute percentage change compared with the original PO line value/quantity.
-  price_change_pct: 5.0
-  # A promised date slip above this many calendar days requires approval.
-  date_slip_days: 3
-  # Absolute percentage quantity change compared with the ordered quantity.
-  quantity_change_pct: 10.0
-  # Additional guardrails used by the workflow.
+  price_change_pct: 5.0       # absolute price delta, percent
+  date_slip_days: 7           # positive calendar-day slip
+  quantity_change_pct: 10.0   # absolute quantity delta, percent
+  max_price_change_pct: 15.0
   max_date_slip_days: 30
   max_quantity_change_pct: 50.0
-  require_approval_for_cancel: true
 
 distributions:
-  supplier_count: 120
-  item_count: 500
-  warehouse_count: 8
-  carrier_count: 20
-  planner_count: 12
-  logistics_analyst_count: 6
-  operations_manager_count: 4
-  supplier_acknowledgement:
-    acknowledged_probability: 0.72
-    rejected_probability: 0.06
-    pending_probability: 0.22
-  quantity_change:
-    no_change_probability: 0.70
-    decrease_probability: 0.16
-    increase_probability: 0.14
-    min_change_pct: 2.0
-    max_change_pct: 35.0
-  promised_date_slip_days:
-    on_time_probability: 0.58
-    early_probability: 0.08
-    delayed_probability: 0.34
-    early_min_days: 1
-    early_max_days: 5
-    delayed_min_days: 1
-    delayed_max_days: 21
-  price_change_pct:
-    no_change_probability: 0.90
-    changed_min_pct: 1.0
-    changed_max_pct: 12.0
-  event_types:
-    acknowledgement_received: 0.28
-    promised_date_updated: 0.22
-    quantity_change_requested: 0.16
-    price_change_requested: 0.08
-    approval_decided: 0.10
-    schedule_recalculated: 0.10
-    shipment_dispatched: 0.06
-  lead_time_days:
-    min: 5
-    max: 45
-  unit_price:
-    min: 5.0
-    max: 2500.0
-  ordered_quantity:
-    min: 10
-    max: 5000
-
-workflow:
-  database_path: data/generated/supplier_ack.db
-  output_dir: data/generated
-  sample_output_dir: data/samples
-  default_scale: starter
-  currency: INR
-  date_horizon_days: 90
-  notification_channels:
-    - in_app
-    - email
-  # Actor responsibilities are consumed by workflow routing and audit metadata.
-  actor_roles:
-    supplier:
-      responsibilities: [acknowledgement_owner, promise_owner, quantity_change_requester]
-    planner:
-      responsibilities: [schedule_owner, schedule_impact_reviewer]
-    carrier_warehouse_operator:
-      responsibilities: [dispatch_confirmation, warehouse_receipt]
-    logistics_analyst:
-      responsibilities: [transit_risk_analysis, logistics_exception_owner]
-    operations_manager:
-      responsibilities: [exception_approver, escalation_owner]
+  default_currency: INR
+  supplier_lead_time:
+    regular_probability: 0.82
+    regular_min_days: 7
+    regular_max_days: 30
+    tail_min_days: 31
+    tail_max_days: 90
+  supplier_reliability:
+    low_reliability_probability: 0.08
+    reliable_beta_alpha: 8.0
+    reliable_beta_beta: 2.0
+    unreliable_beta_alpha: 2.0
+    unreliable_beta_beta: 5.0
+    on_time_reliability_weight: 0.60
+    on_time_noise_beta_alpha: 8.0
+    on_time_noise_beta_beta: 2.0
+  supplier_status:
+    ACTIVE: 0.94
+    ON_HOLD: 0.04
+    BLOCKED: 0.015
+    INACTIVE: 0.005
+  supplier_sampling:
+    pareto_alpha: 1.15
+  preferred_carrier:
+    preferred_probability: 0.78
+  order_calendar:
+    start_date: '2026-01-01'
+    end_date: '2026-06-30'
+    min_delivery_buffer_days: 2
+    max_delivery_buffer_days: 7
+    supplier_response_due_days: 2
+    created_hour_utc: 9
+    due_hour_utc: 17
+  po_lines:
+    min_lines_per_po: 2
+    max_lines_per_po: 6
+    quantity_lognormal_mean: 5.8
+    quantity_lognormal_sigma: 0.85
+    quantity_min: 10
+    quantity_max: 5000
+  item_catalog:
+    categories:
+      fasteners:
+        default_uom: EA
+        min_unit_price: 5.0
+        max_unit_price: 100.0
+        names:
+          - Stainless Steel Hex Bolt M6
+          - Galvanized Hex Bolt M8
+          - Stainless Steel Lock Nut M6
+          - Zinc-Plated Flat Washer M8
+          - Spring Washer M10
+          - Carbon Steel Threaded Rod
+          - Stainless Steel Set Screw
+          - Heavy-Duty Anchor Bolt
+          - Nylon Lock Nut M12
+          - Brass Machine Screw
+      bearings:
+        default_uom: EA
+        min_unit_price: 80.0
+        max_unit_price: 2500.0
+        names:
+          - Deep-Groove Ball Bearing 6202
+          - Tapered Roller Bearing 30204
+          - Stainless Pillow Block Bearing
+          - Needle Roller Bearing NK20
+          - Thrust Ball Bearing 51105
+          - Spherical Roller Bearing 22208
+          - Flanged Ball Bearing UCFL204
+          - Miniature Precision Bearing
+          - Cylindrical Roller Bearing NJ205
+          - Sealed Radial Bearing 6305
+      electrical:
+        default_uom: EA
+        min_unit_price: 20.0
+        max_unit_price: 1800.0
+        names:
+          - Industrial Relay 24V DC
+          - Copper Cable Lug 16mm
+          - IP65 Cable Gland M20
+          - Three-Phase Contactor 32A
+          - Panel-Mount Circuit Breaker
+          - Proximity Sensor M12
+          - Industrial Terminal Block
+          - Shielded Control Cable 10m
+          - DIN-Rail Power Supply 24V
+          - Emergency Stop Push Button
+      fluid_handling:
+        default_uom: L
+        min_unit_price: 25.0
+        max_unit_price: 950.0
+        names:
+          - Hydraulic Oil ISO 46
+          - Food-Grade Lubricant
+          - Industrial Coolant Concentrate
+          - Pneumatic Hose 10mm
+          - Stainless Steel Ball Valve
+          - High-Pressure Pipe Coupling
+          - PTFE Gasket Sheet
+          - Chemical-Resistant Seal Kit
+          - Brass Pressure Regulator
+          - Industrial Filter Cartridge
+      packaging:
+        default_uom: BOX
+        min_unit_price: 15.0
+        max_unit_price: 650.0
+        names:
+          - Corrugated Shipping Carton
+          - ESD-Safe Component Box
+          - Heavy-Duty Stretch Film Roll
+          - Anti-Static Bubble Wrap
+          - Reusable Plastic Tote
+          - Pallet Corner Protector
+          - Moisture Barrier Bag
+          - Printed Supplier Label Pack
+          - Industrial Foam Insert Set
+          - Reinforced Packing Strap Roll
+# Generation Step 4: explicit volume targets and realized coverage mix.
+# `event_count` in each scale counts acknowledgement rows (all revisions) +
+# change-request rows. Supplier silence has no acknowledgement row by design.
+coverage:
+  as_of_date: '2026-10-28'
+  target_proportions:
+    partial_acceptance: 0.22        # among responding POs, latest ACK outcome
+    full_acceptance: 0.70           # among responding POs, latest ACK outcome
+    full_rejection: 0.08            # among responding POs, latest ACK outcome
+    date_slips: 0.30                # among latest line-level PromiseDate rows
+    on_time_promises: 0.70          # among latest line-level PromiseDate rows
+    price_changes: 0.06             # among accepted/partially accepted PO lines
+    supplier_silence: 0.05          # among all POs; no ACK row is created
+    multiple_revisions: 0.08        # among all POs; 2–4 ACK rows for selected POs
+  acknowledgement_revisions:
+    min_revisions: 2
+    max_revisions: 4
+    count_probabilities:
+      2: 0.50
+      3: 0.35
+      4: 0.15
+    revision_step_min_days: 1
+    revision_step_max_days: 2
+  acknowledgement_outcomes:
+    partial_acceptance_beta_concentration: 10.0
+    reliability_effect: 0.25
+    large_quantity_effect: 0.08
+    risk_noise_sd: 0.12
+    rejection_reason_weights:
+      capacity: 0.34
+      price: 0.14
+      stock: 0.34
+      logistics: 0.18
+  promise_dates:
+    slip_days_lognormal_mean: 1.90
+    slip_days_lognormal_sigma: 0.60
+    min_slip_days: 3
+    max_slip_days: 60
+    on_time_early_days_beta_alpha: 2.0
+    on_time_early_days_beta_beta: 5.0
+    max_early_days: 5
+    slip_risk_noise_sd: 0.15
+    sources:
+      SUPPLIER_PORTAL: 0.55
+      EMAIL: 0.20
+      EDI: 0.15
+      API: 0.07
+      MANUAL: 0.03
+  price_changes:
+    increase_probability: 0.78           # upward skew is deliberate
+    magnitude_min_pct: 0.5
+    magnitude_max_pct: 15.0
+    magnitude_beta_alpha: 2.0            # most changes cluster below the maximum
+    magnitude_beta_beta: 3.5
+    risk_noise_sd: 0.10
+  change_requests:
+    # PRICE_CHANGE rows are emitted first; overdue-silence date requests are
+    # reserved next; these weights allocate the remaining non-silence budget.
+    non_price_type_weights:
+      QUANTITY_CHANGE: 0.50
+      DATE_CHANGE: 0.50
