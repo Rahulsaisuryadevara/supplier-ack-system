@@ -27,12 +27,12 @@ def config() -> dict:
 
 @pytest.fixture(scope="module")
 def starter(config):
-    return generate_dataset(config, "starter", 20261022, validate=True)
+    return generate_dataset(config, "starter", 20261022, validate=True, inject_anomalies=False)
 
 
 @pytest.fixture(scope="module")
 def full(config):
-    return generate_dataset(config, "full", 20261022, validate=False)
+    return generate_dataset(config, "full", 20261022, validate=False, inject_anomalies=False)
 
 
 def _current_acknowledgements(frames):
@@ -139,10 +139,13 @@ def test_promise_date_revisions_preserve_chain_and_current_snapshot(starter, ful
         by_id = promises.set_index("promise_date_id")
         assert promises["promise_date_id"].is_unique
         group_sizes = promises.groupby("po_line_id").size()
-        revision_line_ids = group_sizes[group_sizes.gt(1)].index
+        revision_line_ids = set(group_sizes[group_sizes.gt(1)].index)
         assert promises.groupby("po_line_id")["status"].apply(lambda col: int(col.eq("CURRENT").sum())).eq(1).all()
-        for line_id in revision_line_ids:
-            ordered = promises.loc[promises["po_line_id"].eq(line_id)].sort_values("revision_no")
+        # Group once instead of rescanning the full 50k-row full-scale table for
+        # every revised line; this preserves assertions while avoiding quadratic tests.
+        revision_rows = promises.loc[promises["po_line_id"].isin(revision_line_ids)]
+        for line_id, line_group in revision_rows.groupby("po_line_id", sort=False):
+            ordered = line_group.sort_values("revision_no")
             assert ordered["status"].eq("SUPERSEDED").sum() == len(ordered) - 1
             assert ordered.iloc[-1]["status"] == "CURRENT"
             for prior, later in zip(ordered.iloc[:-1].to_dict("records"), ordered.iloc[1:].to_dict("records")):
@@ -286,6 +289,14 @@ def test_change_types_use_computed_deltas_and_rule_based_approval_routing(starte
             change_id: group.sort_values("approval_round").to_dict("records")
             for change_id, group in approvals.groupby("change_request_id", sort=False)
         }
+        # Index relevant events once; scanning the full event table per date change is
+        # quadratic at full scale (thousands of changes x 100k+ events).
+        downstream_flag_by_change = {}
+        flagged_events = frames["entity_event"].loc[
+            frames["entity_event"]["target_change_request_id"].notna()
+            & frames["entity_event"]["payload_json"].str.contains('"downstream_impact_flag":true', regex=False)
+        ]
+        downstream_flag_by_change = set(flagged_events["target_change_request_id"].astype(str))
         for change in changes.to_dict("records"):
             kind = str(change["change_type"])
             expected_delta = computed_delta(kind, change["old_value"], change["new_value"])
@@ -314,10 +325,7 @@ def test_change_types_use_computed_deltas_and_rule_based_approval_routing(starte
             assert change["status"] == ("REJECTED" if rule["hard_limit_breach"] else "IMPLEMENTED")
             if kind == "date" and rule["downstream_impact_flag"]:
                 assert change["issue_type"] == "DATE_SLIP_REQUIRES_APPROVAL"
-                related_events = frames["entity_event"].loc[
-                    frames["entity_event"]["target_change_request_id"].eq(change["change_request_id"])
-                ]
-                assert related_events["payload_json"].str.contains('"downstream_impact_flag":true').any()
+                assert str(change["change_request_id"]) in downstream_flag_by_change
 
 
 def test_approval_workflow_is_append_only_audited_and_silence_sends_chase(starter):
@@ -332,12 +340,13 @@ def test_approval_workflow_is_append_only_audited_and_silence_sends_chase(starte
     assert events["event_id"].is_unique
     assert {"change_requested", "approval_decided", "change_applied"}.issubset(set(events["event_type"]))
     assert notifications["status"].eq("SENT").all()
-    assert notifications["title"].str.contains("overdue", case=False).all()
+    silence_notices = notifications.loc[notifications["not_type"].eq("SUPPLIER_SILENCE_CHASE")]
+    assert silence_notices["title"].str.contains("overdue", case=False).all()
     assert set(notifications["source_event_id"]).issubset(set(events["event_id"]))
-    assert set(notifications["change_request_id"]).issubset(set(changes["change_request_id"]))
+    assert set(notifications["change_request_id"].dropna()).issubset(set(changes["change_request_id"]))
     silence = changes.loc[changes["reason_text"].str.contains("No supplier acknowledgement", case=False, na=False)]
     assert len(silence) == 10
     assert silence["requested_by_role"].eq("planner").all()
     assert silence["status"].eq("UNDER_REVIEW").all()
-    assert notifications["change_request_id"].nunique() == len(silence)
+    assert silence_notices["change_request_id"].nunique() == len(silence)
     assert approvals["status"].isin(["APPROVED", "REJECTED", "PENDING", "ESCALATED"]).all()

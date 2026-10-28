@@ -12,13 +12,16 @@ from numpy.random import Generator, default_rng
 from supplier_ack.ids import IDFactory
 from supplier_ack.schema import ACKNOWLEDGEMENT_LINE_FIELDS, ENTITIES, validate_dataset
 from supplier_ack.generators.acks import generate_acknowledgements_and_promises
+from supplier_ack.generators.anomalies import inject_labelled_edge_cases
 from supplier_ack.generators.changes import generate_changes
+from supplier_ack.generators.supply import generate_supply_workflow, trace as trace_notification
 from supplier_ack.generators.common import active_scale_config, get_config
 from supplier_ack.generators.coverage import build_coverage_report, validate_coverage_config
 from supplier_ack.generators.po_lines import generate_po_lines
 from supplier_ack.generators.purchase_orders import finalize_purchase_order_totals, generate_purchase_orders
 from supplier_ack.generators.reference_data import generate_reference_data
 from supplier_ack.generators.suppliers import generate_suppliers
+from supplier_ack.rules.derived import derive_supplier_scores, reconcile, reconciliation_summary
 
 
 def _new_rng(seed: int) -> Generator:
@@ -136,6 +139,7 @@ def generate_dataset(
     seed: int | None = None,
     *,
     validate: bool = True,
+    inject_anomalies: bool = True,
 ) -> dict[str, pd.DataFrame]:
     """Generate master data and all configured acknowledgement/change events.
 
@@ -197,10 +201,39 @@ def generate_dataset(
             )
             generated["po_lines"].at[row_idx, "projected_value"] = float(projected_value)
 
+    supply_frames = generate_supply_workflow(
+        rng, config, generated["purchase_orders"], generated["po_lines"], generated["suppliers"],
+        generated["actors"], generated["acknowledgements"], generated["acknowledgement_lines"],
+        generated["promise_dates"], generated["change_requests"], generated["approvals"],
+        generated["notifications"], generated["entity_event"], id_factory=factory,
+    )
+    generated.update(supply_frames)
+
+    # Supplier operational scores are derived from the actual transaction rows, not
+    # sampled master attributes. The same library recomputes them during reconciliation.
+    score_map = derive_supplier_scores(generated)
+    generated["suppliers"] = generated["suppliers"].copy(deep=True)
+    for field in ("ack_rate", "on_time_promise_rate", "avg_slip_days"):
+        generated["suppliers"][field] = generated["suppliers"]["supplier_id"].map(
+            {supplier_id: values[field] for supplier_id, values in score_map.items()}
+        )
+
+    # Hard clean-data gate: this runs even when schema validation is skipped. Store
+    # the report in DataFrame attrs so the CLI can print it without re-running work.
+    reconciliation = reconcile(generated, config.get("approval_thresholds", {}))
+    checked, mismatches = reconciliation_summary(reconciliation)
+    generated["suppliers"].attrs["reconciliation_report"] = reconciliation
+    if mismatches:
+        samples = [sample for entity in reconciliation.values() for sample in entity["sample_mismatches"]]
+        preview = "\n".join(f"- {item}" for item in samples[:20])
+        raise ValueError(
+            f"derived-value reconciliation failed: {mismatches} mismatch(es) across {checked} checks\n{preview}"
+        )
+
     generated["coverage_report"] = build_coverage_report(config, scale, seed_value, generated)
 
     # Ensure the primary entity frames are always the exact source-of-truth schema columns.
-    for entity_name in ("Supplier", "PurchaseOrder", "POLine", "Acknowledgement", "PromiseDate", "ChangeRequest", "Approval"):
+    for entity_name in ("Supplier", "PurchaseOrder", "POLine", "Acknowledgement", "PromiseDate", "ChangeRequest", "Approval", "InventoryPlan", "ProductionOrder", "Notification"):
         table = ENTITIES[entity_name].table_name
         expected = [field.name for field in ENTITIES[entity_name].fields]
         if generated[table].columns.tolist() != expected:
@@ -212,6 +245,12 @@ def generate_dataset(
         expected_events = int(active_scale_config(config)["event_count"])
         if actual_events != expected_events:
             raise ValueError(f"event volume mismatch: expected {expected_events} ACK+ChangeRequest rows, got {actual_events}")
+
+    # Generation Step 7 is a distinct, post-validation stage. The reconciliation
+    # report above is the clean-baseline report; injected rows intentionally violate
+    # documented rules and are labelled internally plus in the separate target file.
+    if inject_anomalies:
+        generated = inject_labelled_edge_cases(generated, config, scale, rng, seed_value)
     return generated
 
 
@@ -235,7 +274,7 @@ def _distribution_summary(frames: Mapping[str, pd.DataFrame]) -> dict[str, Any]:
     correlation = float(suppliers["reliability_score"].corr(suppliers["on_time_rate"])) if len(suppliers) > 1 else 1.0
     rows_to_count = {
         name: int(len(frame)) for name, frame in frames.items()
-        if name not in {"coverage_report", "silence_report"}
+        if name not in {"coverage_report", "silence_report", "ground_truth_records", "injection_summary"}
     }
     summary: dict[str, Any] = {
         "row_counts": rows_to_count,
@@ -246,6 +285,12 @@ def _distribution_summary(frames: Mapping[str, pd.DataFrame]) -> dict[str, Any]:
             "reliability_on_time_pearson_correlation": round(correlation, 4),
         },
     }
+    if "injection_summary" in frames:
+        summary["anomaly_injection"] = {
+            str(row["issue_type"]): int(row["injected_count"])
+            for row in frames["injection_summary"].to_dict(orient="records")
+        }
+        summary["ground_truth_row_count"] = int(len(frames.get("ground_truth_records", pd.DataFrame())))
     if "change_requests" in frames and "acknowledgements" in frames:
         summary["event_counts"] = {
             "acknowledgement_rows": int(len(frames["acknowledgements"])),
@@ -262,6 +307,31 @@ def _distribution_summary(frames: Mapping[str, pd.DataFrame]) -> dict[str, Any]:
             "operations_manager_review_count": int(approvals.loc[approvals["approval_level"].eq("operations_manager"), "change_request_id"].nunique()) if not approvals.empty else 0,
             "silence_chase_count": int(changes["reason_text"].str.contains("No supplier acknowledgement", case=False, na=False).sum()),
             "escalation_reasons_by_threshold": {str(key): int(value) for key, value in approvals.loc[approvals["status"].eq("ESCALATED"), "threshold_name"].value_counts().sort_index().items()} if not approvals.empty else {},
+        }
+    if "inventory_plans" in frames:
+        plans = frames["inventory_plans"]
+        summary["projected_supply"] = {
+            "baseline_plan_versions": int(plans["plan_version"].eq(1).sum()),
+            "approved_ack_versions": int(plans["source"].eq("approved_ack").sum()),
+            "approved_change_versions": int(plans["source"].eq("approved_change").sum()),
+            "effective_versions": int(plans["is_effective"].eq(1).sum()),
+            "lines_held_at_baseline": int(plans.loc[plans["is_effective"].eq(1), "source"].eq("po_baseline").sum()),
+        }
+    if "production_orders" in frames:
+        summary["downstream_schedule"] = {
+            "production_orders": int(len(frames["production_orders"])),
+            "orders_at_risk": int(frames["production_orders"]["status"].eq("AT_RISK").sum()),
+            "orders_rescheduled": int(frames["production_orders"]["status"].eq("RESCHEDULED").sum()),
+            "impact_counts_by_type": {str(k): int(v) for k, v in frames.get("production_order_impact", pd.DataFrame()).get("impact_type", pd.Series(dtype=str)).value_counts().sort_index().items()},
+            "impact_severity_distribution": {str(k): int(v) for k, v in frames.get("production_order_impact", pd.DataFrame()).get("severity", pd.Series(dtype=str)).value_counts().sort_index().items()},
+        }
+    if "notifications" in frames:
+        notifications = frames["notifications"]
+        summary["notification_workflow"] = {
+            "notification_count": int(len(notifications)),
+            "counts_by_type": {str(k): int(v) for k, v in notifications["not_type"].value_counts().sort_index().items()},
+            "recipient_links": int(len(frames.get("notification_recipient", pd.DataFrame()))),
+            "notifications_with_change_trace": int(notifications["change_request_id"].notna().sum()),
         }
     if "coverage_report" in frames:
         summary["coverage_report"] = frames["coverage_report"].to_dict(orient="records")
@@ -318,8 +388,86 @@ def write_generated_data(
     if not target.is_absolute():
         target = Path.cwd() / target
     target.mkdir(parents=True, exist_ok=True)
+    label_columns = ["issue_type", "ground_truth", "boundary"]
+    json_state_columns = ("payload_json", "previous_state", "new_state")
+    freshly_written: set[str] = set()
+
+    def strip_label_keys(value: Any) -> Any:
+        if isinstance(value, dict):
+            return {key: strip_label_keys(item) for key, item in value.items()
+                    if key not in {"issue_type", "ground_truth", "boundary"}}
+        if isinstance(value, list):
+            return [strip_label_keys(item) for item in value]
+        return value
+
     for name, frame in frames.items():
-        frame.to_csv(target / f"{name}.csv", index=False, encoding="utf-8", lineterminator="\n")
+        if name in {"ground_truth_records", "injection_summary"}:
+            continue
+        export_frame = frame.drop(columns=label_columns, errors="ignore").copy()
+        if name == "entity_event" and not frame.attrs.get("label_keys_scrubbed", False):
+            for json_col in json_state_columns:
+                if json_col not in export_frame.columns:
+                    continue
+                def clean_json(raw: Any) -> Any:
+                    if pd.isna(raw):
+                        return raw
+                    try:
+                        payload = json.loads(str(raw))
+                    except (ValueError, TypeError):
+                        return raw
+                    return json.dumps(strip_label_keys(payload), sort_keys=True, separators=(",", ":"))
+                export_frame[json_col] = export_frame[json_col].map(clean_json)
+        filename = f"{name}.csv"
+        export_frame.to_csv(target / filename, index=False, encoding="utf-8", lineterminator="\n")
+        freshly_written.add(filename)
+
+    # Ground-truth labels are target-only artifacts, never input features. Publish
+    # them beside the chosen output and at the canonical data/generated path.
+    truth = frames.get("ground_truth_records", pd.DataFrame())
+    truth_records = truth.to_dict(orient="records") if isinstance(truth, pd.DataFrame) else []
+    truth_json = json.dumps({"scale": scale, "seed": int(seed), "records": truth_records}, indent=2, sort_keys=True, default=str) + "\n"
+    truth.to_csv(target / "ground_truth.csv", index=False, encoding="utf-8", lineterminator="\n")
+    (target / "ground_truth.json").write_text(truth_json, encoding="utf-8")
+    canonical_truth_dir = Path.cwd() / "data" / "generated"
+    canonical_truth_dir.mkdir(parents=True, exist_ok=True)
+    # The canonical target file represents the full-scale evaluation labels.
+    # Starter exports and tests writing to temporary directories must never replace it.
+    if canonical_truth_dir.resolve() != target.resolve() and scale == "full":
+        truth.to_csv(canonical_truth_dir / "ground_truth.csv", index=False, encoding="utf-8", lineterminator="\n")
+        (canonical_truth_dir / "ground_truth.json").write_text(truth_json, encoding="utf-8")
+
+    # Migrate legacy exports produced by older revisions, then fail closed. Files
+    # emitted during this call already had label columns removed and JSON payloads
+    # scrubbed in memory, so they need only a cheap header check.
+    def strip_and_check_export(directory: Path, fresh_files: set[str]) -> None:
+        for csv_path in directory.glob("*.csv"):
+            if csv_path.name == "ground_truth.csv":
+                continue
+            header = pd.read_csv(csv_path, nrows=0).columns
+            leaked = set(header).intersection(label_columns)
+            needs_json_scrub = bool(set(header).intersection(json_state_columns)) and csv_path.name not in fresh_files
+            if leaked or needs_json_scrub:
+                legacy = pd.read_csv(csv_path, low_memory=False)
+                legacy.drop(columns=list(leaked), inplace=True, errors="ignore")
+                for json_col in json_state_columns:
+                    if json_col not in legacy.columns or not needs_json_scrub:
+                        continue
+                    def scrub_state(raw: Any) -> Any:
+                        if pd.isna(raw):
+                            return raw
+                        try:
+                            payload = json.loads(str(raw))
+                        except (ValueError, TypeError):
+                            return raw
+                        return json.dumps(strip_label_keys(payload), sort_keys=True, separators=(",", ":"))
+                    legacy[json_col] = legacy[json_col].map(scrub_state)
+                legacy.to_csv(csv_path, index=False, encoding="utf-8", lineterminator="\n")
+            header = pd.read_csv(csv_path, nrows=0).columns
+            leaked = set(header).intersection(label_columns)
+            if leaked:
+                raise ValueError(f"export leakage check failed for {csv_path.name}: {sorted(leaked)}")
+    strip_and_check_export(target, freshly_written)
+
     summary = _distribution_summary(frames)
     summary["scale"] = scale
     summary["seed"] = int(seed)
@@ -361,6 +509,50 @@ def print_generation_summary(frames: Mapping[str, pd.DataFrame], scale: str, see
             for row in group.to_dict(orient="records"):
                 print(f"    {row['category']:22s} {row['count']:>7,d} / {row['denominator']:<7,d} = {row['percentage']:>6.2f}% (target {row['target_proportion'] * 100:>5.1f}%)")
     print(f"\nSupplier silence report rows: {len(frames.get('silence_report', pd.DataFrame()))}")
+    if "projected_supply" in summary:
+        metrics = summary["projected_supply"]
+        print("\nProjected supply / InventoryPlan versioning")
+        for metric, value in metrics.items():
+            print(f"  {metric.replace('_', ' '):34s} {value:>8,d}")
+    if "downstream_schedule" in summary:
+        metrics = summary["downstream_schedule"]
+        print("\nDownstream production schedule")
+        for metric in ("production_orders", "orders_at_risk", "orders_rescheduled"):
+            print(f"  {metric.replace('_', ' '):34s} {metrics[metric]:>8,d}")
+        print("  Impact counts by type:")
+        for impact_type, count in metrics["impact_counts_by_type"].items():
+            print(f"    {impact_type:30s} {count:>8,d}")
+        print("  Impact severity distribution:")
+        for severity, count in metrics["impact_severity_distribution"].items():
+            print(f"    {severity:30s} {count:>8,d}")
+    if "notification_workflow" in summary:
+        metrics = summary["notification_workflow"]
+        print("\nNotification workflow")
+        for metric in ("notification_count", "recipient_links", "notifications_with_change_trace"):
+            print(f"  {metric.replace('_', ' '):34s} {metrics[metric]:>8,d}")
+        for notice_type, count in metrics["counts_by_type"].items():
+            print(f"  {notice_type:34s} {count:>8,d}")
+        print("\nThree example notification traces (notification → change when present → ACK → PO → supplier)")
+        examples = []
+        for wanted_type in ("CHANGE_RAISED", "APPROVAL_DECISION", "DOWNSTREAM_IMPACT"):
+            candidates = frames["notifications"].loc[frames["notifications"]["not_type"].eq(wanted_type)]
+            if not candidates.empty:
+                examples.append(candidates.iloc[0])
+        if len(examples) < 3:
+            for _, candidate in frames["notifications"].iterrows():
+                if len(examples) >= 3:
+                    break
+                if all(str(candidate["notification_id"]) != str(row["notification_id"]) for row in examples):
+                    examples.append(candidate)
+        for index, row in enumerate(examples[:3], start=1):
+            chain = trace_notification(str(row["notification_id"]), frames)
+            notice = chain["notification"]
+            change = chain["change"]
+            ack = chain["acknowledgement"]
+            po = chain["purchase_order"]
+            supplier = chain["supplier"]
+            print(f"  {index}. {notice['notification_id']} ({notice['not_type']})")
+            print(f"     change={change.get('change_request_id') if change else 'none (ACK-only)'}; ACK={ack.get('ack_id') if ack else 'unavailable'}; PO={po.get('po_id') if po else 'unavailable'}; supplier={supplier.get('supplier_id') if supplier else 'unavailable'}; trace={chain['trace_status']}")
     if "acknowledgement_metrics" in summary:
         metrics = summary["acknowledgement_metrics"]
         print("\nAcknowledgement workflow metrics")
@@ -395,6 +587,19 @@ def print_generation_summary(frames: Mapping[str, pd.DataFrame], scale: str, see
             for threshold_name, group in escalations.groupby("threshold_name", dropna=False, sort=True):
                 example = str(group.iloc[0]["decision_reason"] or "threshold breach")
                 print(f"  {threshold_name}: {len(group)} case(s); {example}")
+    if "injection_summary" in frames:
+        print("\nControlled anomaly injection (post-baseline; labels excluded from input CSVs)")
+        for row in frames["injection_summary"].to_dict(orient="records"):
+            print(f"  {row['issue_type']:38s} {int(row['injected_count']):>6,d}")
+        print(f"  Ground-truth rows (including boundary and decision labels): {len(frames.get('ground_truth_records', pd.DataFrame())):,}")
+    report = frames.get("suppliers", pd.DataFrame()).attrs.get("reconciliation_report", {})
+    if report:
+        checked, mismatches = reconciliation_summary(report)
+        print(f"\nDerived-value reconciliation (checked={checked}, mismatches={mismatches})")
+        for entity_name, values in report.items():
+            print(f"  {entity_name:22s} checked={int(values['checked_count']):>6,d}  mismatches={int(values['mismatch_count']):>3,d}")
+            for sample in values["sample_mismatches"]:
+                print(f"    mismatch: {sample}")
 
 
 def generate_and_write(

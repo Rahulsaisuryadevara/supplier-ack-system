@@ -492,3 +492,104 @@ ACCEPTANCE CHECKLIST:
 [ ] Event log rows for every change/approval state change
 
 COMMIT MESSAGE: "feat: change requests, multi-level approvals, and configurable threshold rules"
+
+
+Continue the supplier-ack-system project. New task: implement the downstream half of the workflow — "update projected supply only after approval; notify affected planners" — plus InventoryPlan, ProductionOrder, and Notification.
+
+INVENTORYPLAN (IP-<PO-line-id>-NN):
+- Represents the PROJECTED SUPPLY for a PO line, as versioned append-only rows: plan_version, projected_qty, projected_delivery_date, source (po_baseline / approved_ack / approved_change), created_at, effective flags
+- Version 1 always = the original PO line values (baseline projection)
+- A new version row is created ONLY when: an acknowledgement is fully processed with promises AND its change is approved (or within-threshold auto-approved). If a change is pending or rejected, NO new InventoryPlan version is created — the projection stays at the last approved state. This is the acceptance criterion "only approved changes affect plans" — implement it as a hard rule and unit-test it.
+- Every version row keeps the previous version linkage (previous_version_id). History never overwritten.
+
+PRODUCTIONORDER (PRO-2026-NNNNNN) — DOWNSTREAM SCHEDULE IMPACT:
+- Production orders consume PO lines: production_order_line bridge (allocated_quantity)
+- Each production order has: required_by_date, planned_start_date, priority, status lifecycle (planned → at_risk → rescheduled → confirmed / delayed)
+- IMPACT PROPAGATION RULE (the heart of "downstream schedule impacts"): when an approved change slips a promise date or reduces promised quantity beyond a tolerance, find the production orders whose required_by_date now conflicts with the new projected delivery, or whose allocated quantity exceeds the new projected supply. For each affected production order: create/emit an impact record (impact_id, production_order_id, change_id, impact_type date_conflict/quantity_shortfall, severity computed from slip days and shortfall %), update the production order status to at_risk or rescheduled, and record the rescheduled planned_start_date computed from the new projected date.
+- Production order status changes must flow through the event log with actor_role=planner or operations manager.
+- Compute, don't fabricate: severity = documented function of slip days and shortfall %.
+
+NOTIFICATION (NOT-2026-NNNNNN):
+- Generated on: change raised (to owning planner), approval decisions (to requester), plan updates (to planner + logistics analyst), downstream impacts (to planner + carrier/warehouse operator when a delivery slot moves), supplier silence chases (to planner + supplier), weekly summary to operations manager
+- Fields: not_id, not_type, severity, subject, body (rendered from a template with entity ids — traceable), recipient references via the notification_recipient bridge (role + optional actor id), related_entity_type/id (the PO/ACK/CHG it traces to), sent_at, read status
+- "Notify affected planners": map each PO to its owning planner (buyer field on the PO); notifications must go to the RIGHT planner, not a random one.
+
+Traceability acceptance: given any Notification, one must be able to walk back: notification → change → acknowledgement → PO → supplier. Implement a helper function trace(not_id) that returns this chain and print 3 example traces.
+
+Implement in src/supplier_ack/generators/supply.py (or workflow modules), then run the starter generation end-to-end for ALL tables and print an end-to-end run summary.
+
+ACCEPTANCE CHECKLIST:
+[ ] InventoryPlan versions: baseline version for every line; new versions only after approval — verified by a test that a rejected/pending change produces no new version
+[ ] Production order impact propagation works: slip/shortfall → impact records + status changes
+[ ] Severity computed from a documented function
+[ ] Notifications go to correct recipients by role and trace to source entities
+[ ] trace() helper returns a full chain for sample notifications
+[ ] Event log rows written for plan updates, impacts, and notifications
+[ ] Starter dataset now covers all 10 entities end-to-end
+
+COMMIT MESSAGE: "feat: projected supply versions, downstream production impacts, and traceable notifications"
+
+Continue the supplier-ack-system project. New task: enforce the derived-value and reconciliation discipline (Generation Step 6 of the problem statement) across the whole dataset. From now dont take much time, take 10-15mins max.
+
+"Calculate derived values (totals, balances, scores, statuses and dates) from source records rather than generating them independently."
+
+TASK 1 — Build src/supplier_ack/rules/derived.py as a single derived-attribute library used by BOTH the generator and the validation suite:
+- PO total_amount = Σ line_total of its POLines
+- Acknowledgement deltas (qty/price/date) recomputed from source columns
+- Acknowledgement status derivation: full_accept / partial_accept / full_reject / revised, from accepted vs requested
+- PromiseDate derived flags: is_late (vs requested date), slip_days
+- ChangeRequest derived fields: delta_abs, delta_pct, required_approval_level (from thresholds)
+- InventoryPlan derived: latest_approved_version per line (via plan version ordering + approval joins)
+- ProductionOrder derived: at_risk flag, shortfall_qty (allocated − projected), delay_days
+- Supplier derived scores: ack_rate, on_time_promise_rate, avg_slip_days — recomputed from the actual acknowledgement rows
+- Notification derived: open_impact_count per PO
+
+TASK 2 — Reconciliation engine: a function reconcile(dataset) that recomputes every derived value from raw sources and asserts equality with stored values, returning a per-entity reconciliation report (checked_count, mismatch_count, sample mismatches). Wire it into the generator as a post-generation step so the generator cannot ship an internally inconsistent dataset.
+
+TASK 3 — Arithmetical invariants to enforce (add to the library):
+- accepted + rejected = requested per acknowledged line
+- line_total = qty × unit_price everywhere
+- PO total = Σ line totals
+- InventoryPlan latest version quantity/dates equal the approved acknowledgement promise
+- Production order allocated ≤ projected supply for confirmed orders (violations allowed only for at_risk orders — document this)
+- Every event-log state change for an entity matches that entity's stored lifecycle transitions
+
+TASK 4 — Add a "status consistency" rule per the acceptance criteria ("acknowledgement status is consistent"): the derived ack status must agree with the stored ack status; write unit tests for the derivation function including boundary cases (accepted = 0, accepted = requested, rounding).
+
+Run the starter dataset through reconcile() and print the reconciliation report — it must show zero mismatches before anomaly injection (anomalies come next).
+
+ACCEPTANCE CHECKLIST:
+[ ] derived.py library exists and is the single source of truth for derived values
+[ ] Generator calls reconcile() after generation; zero mismatches on clean starter data
+[ ] All 6 invariant groups enforced and unit-tested
+[ ] Ack status derivation tested at boundaries
+[ ] Supplier scores recomputed from data, not generated
+
+COMMIT MESSAGE: "feat: derived-value library and reconciliation engine with zero-mismatch gate"
+
+
+Continue the supplier-ack-system project. New task: inject the four required labelled edge cases and produce the separated ground-truth file (Generation Steps 5 and 7 of the problem statement).
+
+REQUIRED EDGE CASES — inject each in a controlled, documented way, AFTER valid baseline generation:
+1. UNAPPROVED_CHANGE_UPDATES_PLAN: an InventoryPlan version row exists whose source links to a ChangeRequest that has NO approved Approval. Exact counts from config (e.g., 25 full-scale, 5 starter).
+2. ACK_WRONG_PO_LINE: acknowledgement lines referencing a po_line_id that does not belong to the referenced PO (cross-PO line reference), plus a variant referencing a non-existent line id. Keep the row with an issue_type label rather than "silently corrupting unrelated rows" — label it, do not randomize other data around it.
+3. PROMISE_DATE_BEFORE_ORDER_DATE: PromiseDate rows where promise_date < po.order_date (logically impossible).
+4. STALE_REVISION_OVERWRITE: an older revision (lower revision_no, earlier timestamp) appears as the current/latest version — e.g., the latest InventoryPlan version or the effective promise points to an older revision while a newer revision exists.
+
+DESIGN RULES:
+- Generate valid baseline records first, then inject labelled edge cases as a separate pipeline stage.
+- Each injected row carries issue_type from the four-type enum and a boolean ground_truth flag; normal rows are NULL/False.
+- Add valid boundary cases: accepted_qty = requested_qty, slip exactly equal to threshold days, and price delta exactly at ±threshold, labelled boundary=True.
+- Injection is deterministic under the seed.
+- Produce data/generated/ground_truth.csv and ground_truth.json with expected decisions from documented rules, plus expected approval outcomes for every change request and expected status for every impacted production order.
+- Never leak ground_truth/issue_type into input/export tables. Strip them from exported entity CSVs and validate this automatically; retain them only in internal generator state and separate ground-truth files.
+
+ACCEPTANCE CHECKLIST:
+[ ] All four anomaly types injected at configured counts, deterministic under seed
+[ ] Exact threshold boundary cases included
+[ ] ground_truth.csv and ground_truth.json contain expected decisions
+[ ] Exported input files have no ground_truth/issue_type leakage
+[ ] Injection stage separate from baseline generation
+[ ] Each anomaly documented in docs/decisions.md
+
+COMMIT MESSAGE: "feat: labelled anomaly injection and separated ground-truth files with leakage checks"

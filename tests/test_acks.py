@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 @pytest.fixture(scope="module")
 def starter_frames():
     cfg = yaml.safe_load((ROOT / "config" / "generator_config.yaml").read_text(encoding="utf-8"))
-    return generate_dataset(cfg, "starter", 20261022, validate=True)
+    return generate_dataset(cfg, "starter", 20261022, validate=True, inject_anomalies=False)
 
 
 def test_each_ack_line_snapshot_reconciles_to_source_po_line(starter_frames):
@@ -134,4 +134,6 @@ def test_starter_ack_and_promise_csvs_are_emitted(starter_frames):
         assert path.exists(), f"missing sample export: {path}"
         frame = pd.read_csv(path)
         assert not frame.empty
-        assert frame.columns.tolist() == starter_frames[name].columns.tolist()
+        expected = starter_frames[name].drop(columns=["issue_type", "ground_truth", "boundary"], errors="ignore")
+        assert frame.columns.tolist() == expected.columns.tolist()
+        assert not {"issue_type", "ground_truth", "boundary"}.intersection(frame.columns)

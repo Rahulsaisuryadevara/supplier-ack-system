@@ -2,12 +2,12 @@
 
 ## Scope and design principles
 
-This document specifies the SQLite persistence contract for the supplier acknowledgement workflow. The ten business entities are **Supplier**, **PurchaseOrder**, **POLine**, **Acknowledgement**, **PromiseDate**, **ChangeRequest**, **Approval**, **InventoryPlan**, **ProductionOrder**, and **Notification**. The database also contains normalized master/support tables (`actors`, `items`, `warehouses`, `carriers`), the `entity_event` audit log, and the two required bridge tables.
+This document specifies the SQLite persistence contract for the supplier acknowledgement workflow. The ten business entities are **Supplier**, **PurchaseOrder**, **POLine**, **Acknowledgement**, **PromiseDate**, **ChangeRequest**, **Approval**, **InventoryPlan**, **ProductionOrder**, and **Notification**. The database also contains normalized master/support tables (`actors`, `items`, `warehouses`, `carriers`), the `entity_event` audit log, and the `notification_recipient` and `production_order_line` bridges, plus the append-only `production_order_impact` ledger table.
 
 - Every core entity has its own primary key and declared foreign keys. Relationship ownership joins are protected by composite foreign keys or consistency triggers where a single-column FK would allow a parent mismatch.
 - SQLite foreign-key enforcement is switched on by `create_all()` and verified before it returns. A caller opening an existing connection should still use `PRAGMA foreign_keys = ON` on every connection.
 - Business status enums are constrained in DDL. The transition graph is checked by the workflow layer (`is_legal_transition`) so a rejected transition can be logged as an anomaly without mutating the valid current row.
-- Acknowledgement revision payloads and InventoryPlan projected-supply payloads are immutable. A new response or projection requires a new revision row. Approval state changes are logged, and a terminal decision cannot be rewritten.
+- Acknowledgement revision payloads, InventoryPlan versions, Approval rows, ProductionOrderImpact rows, and the event log are append-only. A new response or projection requires a new row; a terminal approval decision cannot be rewritten. ProductionOrder has a current-state snapshot, while each impact/status transition is preserved in the event log.
 - The event log is append-only. Insert/update triggers create full `previous_state` / `new_state` snapshots; direct event-log UPDATE and DELETE operations are rejected.
 - The status columns on the core tables are query-friendly current-state snapshots. The event history is the durable audit source; a historical state can be reconstructed by replaying ordered events. Business payload fields on revision entities are not overwritten to represent a later revision.
 
@@ -52,6 +52,14 @@ erDiagram
 
     PRODUCTION_ORDER ||--o{ PRODUCTION_ORDER_LINE : consumes_allocations
     POLINE ||--o{ PRODUCTION_ORDER_LINE : allocated_component
+
+    PRODUCTION_ORDER ||--o{ PRODUCTION_ORDER_IMPACT : affected_by
+    CHANGE_REQUEST ||--o{ PRODUCTION_ORDER_IMPACT : causes_impact
+    POLINE ||--o{ PRODUCTION_ORDER_IMPACT : impact_for_line
+
+    PRODUCTION_ORDER ||--o{ PRODUCTION_ORDER_IMPACT : affected_by
+    CHANGE_REQUEST ||--o{ PRODUCTION_ORDER_IMPACT : causes_impact
+    POLINE ||--o{ PRODUCTION_ORDER_IMPACT : impact_for_line
 
     PURCHASE_ORDER o|--o{ NOTIFICATION : optional_po_scope
     ACKNOWLEDGEMENT o|--o{ NOTIFICATION : optional_ack_scope
@@ -231,7 +239,7 @@ erDiagram
 | Each of the 10 core entities | EntityEvent | 1:N | Exactly one typed `target_*_id` FK is non-NULL; `entity_type` and `entity_id` must agree with that FK | Supports event history polymorphism without sacrificing referential integrity. `entity_id` alone is not a cross-table FK; the typed target FK plus CHECK enforces its target. |
 | Acknowledgement | Acknowledgement (supersession) | 1:N self-reference | Optional `superseded_by → acknowledgements.ack_id` | A revision can point forward to its successor. Revision payload cannot be edited; only lifecycle/supersession metadata can change. |
 | PromiseDate | PromiseDate (supersession) | 1:N self-reference | Optional `superseded_by → promise_dates.promise_date_id` | Every promise update is another version; old records are retained. |
-| InventoryPlan | InventoryPlan (supersession) | 1:N self-reference | Optional `superseded_by → inventory_plans.inventory_plan_id` | Each projection change creates a new row; only old status/supersession metadata can change. |
+| InventoryPlan | InventoryPlan (supersession) | 1:N self-reference | Optional `superseded_by → inventory_plans.inventory_plan_id` and `previous_version_id → inventory_plans.inventory_plan_id` | Each projection is a new immutable version; UPDATE and DELETE are prohibited. |
 | Actor | EntityEvent | 1:N optional | Composite `(actor_id,actor_role) → actors(actor_id,actor_role)` | `actor_id` is NULL for system-attributed events; non-NULL actor ID and role must match. |
 
 ## Optional relationships and deletion policy
@@ -381,6 +389,14 @@ The state and edge maps are the same maps exported by `STATUS_ENUMS` and `STATUS
 | `CANCELLED` | — (terminal) | No outgoing transition is legal. Terminal rows remain in history. |
 | `CLOSED` | — (terminal) | No outgoing transition is legal. Terminal rows remain in history. |
 
+## Projected supply and downstream impacts
+
+Every PO line begins with an InventoryPlan baseline at version 1 (`source=po_baseline`), copied from its original requested quantity and required date. A subsequent projection version is generated only after the acknowledgement has been processed and a positive promise exists and all line-scoped change requests are implemented; any pending/rejected change holds the projection at the last approved version. Each subsequent row links to its predecessor through `previous_version_id`. InventoryPlan UPDATE and DELETE operations are rejected by SQLite triggers. Exactly one generated version per line is marked `is_effective=1`.
+
+Production orders are linked to component PO lines through `production_order_line` with `allocated_quantity`. The `production_order_impact` table is an append-only impact ledger keyed to a ProductionOrder, ChangeRequest, and PO line. Date conflicts are computed from the new projected delivery date and `required_by_date`; quantity shortfalls are computed by comparing allocated quantity with projected supply. `compute_impact_severity(slip_days, shortfall_pct)` selects the worse band: date LOW through 2 days, MEDIUM through 7, HIGH through 14, then CRITICAL; quantity LOW through 5%, MEDIUM through 10%, HIGH through 25%, then CRITICAL.
+
+Notifications contain a stable `not_id`, type, severity, subject/body, a related entity pair, send/read state, and recipients in `notification_recipient`. Notifications to planners use `PurchaseOrder.planner_actor_id`, not a random actor. The generator emits an event row for each plan, impact, production-order status change, and notification. `trace(not_id, frames)` walks from notification through a ChangeRequest when one exists, the related acknowledgement when present, the PO, and supplier; supplier silence is explicitly represented as a no-ACK outcome.
+
 ## Anomaly handling and integrity policy
 
 An anomaly is never allowed to create a dangling or cross-parent foreign key. Every labelled anomaly row has both `issue_type` and `ground_truth` populated from `ANOMALY_TYPES`; normal rows have both NULL. A DDL constraint may permit a narrowly scoped business-rule anomaly only when its `issue_type` is the matching documented label and `ground_truth` is populated. Enum, primary-key, foreign-key, bridge-key, JSON-shape and typed event-target constraints remain enforced.
@@ -417,3 +433,7 @@ conn.close()
 ```
 
 `create_all()` accepts either a database path or an existing `sqlite3.Connection` and returns the open connection. Schema creation is idempotent for this schema version; `CREATE TABLE IF NOT EXISTS` is not a migration system, so schema changes for an already populated database must be introduced via explicit migrations.
+
+### Derived-value reconciliation gate
+
+`src/supplier_ack/rules/derived.py` is the canonical library for all workflow-derived attributes. After assembling every table, the generator recomputes stored values from source rows and runs `reconcile(dataset)`. Each entity report records `checked_count`, `mismatch_count`, and representative mismatches; generation fails closed if any clean-data mismatch remains. The gate checks line and order arithmetic, accepted/rejected quantity balances, acknowledgement status/deltas, promise slip flags, threshold-required approval level, approved InventoryPlan selection, production risk/shortfall/delay values, supplier scores, notification impact counts, and legal event-log status transitions. Production allocation may exceed current projected supply only for orders whose lifecycle status is `AT_RISK` or `DELAYED`; such shortfall is explicitly derived, not randomized.

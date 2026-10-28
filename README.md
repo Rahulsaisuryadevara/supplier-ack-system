@@ -4,7 +4,7 @@
 
 A locally runnable, traceable workflow for managing supplier purchase-order acknowledgements, promised-date changes, quantity changes, approval exceptions, and downstream schedule impacts. The data model includes Supplier, Planner, Carrier/Warehouse Operator, Logistics Analyst, and Operations Manager roles, and retains the provenance needed to measure decisions and exceptions.
 
-This repository includes the complete field dictionary and relational SQLite schema, deterministic ID factory, seeded master-data generator, and coverage-driven acknowledgement/promise-date revisions, change requests, approvals, and silence reporting. Inventory-plan/production-order generation and the full runtime workflow are subsequent implementation stages; overdue supplier silence already produces planner-owned chase notifications.
+This repository includes the complete field dictionary and relational SQLite schema, deterministic ID factory, seeded master-data generator, coverage-driven acknowledgement/promise-date revisions, rule-based change requests and append-only approvals, projected supply versions gated by approval, downstream production-order impacts, traceable notifications, and supplier-silence chases.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ pip install -e ".[dev]"
 
 ## Generate seeded synthetic data and coverage scenarios
 
-The starter and full datasets use the same generator code. The scale selects only parameters in `config/generator_config.yaml`; the seed makes runs reproducible. Generation now includes master data, acknowledgement revisions, line-level promise dates, rule-driven price/date/quantity change requests, append-only multi-level approval decisions, overdue-silence chase notifications, a supplier-silence report, and a coverage report for both scales.
+The starter and full datasets use the same generator code. The scale selects only parameters in `config/generator_config.yaml`; the seed makes runs reproducible. Generation now includes master data, acknowledgement revisions, line-level promise dates, rule-driven price/date/quantity change requests, append-only multi-level approval decisions, versioned InventoryPlans (only approved updates affect projection), ProductionOrders and allocation bridges, computed downstream impacts with severity bands, role-correct traceable notifications, overdue-silence chases, and coverage reports for both scales. The CLI also prints three example notification traces.
 
 ```bash
 # Starter: 40 suppliers, 200 purchase orders, 2–6 lines per PO
@@ -41,7 +41,7 @@ python -m supplier_ack.cli generate --config config/generator_config.yaml --scal
 python -m supplier_ack.cli generate --config config/generator_config.yaml --scale starter --seed 7 --output-dir /tmp/supplier-ack-output
 ```
 
-Starter CSVs are written to `data/samples/`; full-scale CSVs are written to `data/generated/` (gitignored). Entity CSVs include `suppliers.csv`, `purchase_orders.csv`, `po_lines.csv`, `acknowledgements.csv`, `promise_dates.csv`, `change_requests.csv`, `approvals.csv`, `notifications.csv`, and the support masters. `silence_report.csv` contains overdue POs with no acknowledgement row. `coverage_report.csv` and `coverage_report.json` report observed counts and percentages for all eight required categories at both starter and full scales. `generation_summary.json` records row counts, event-budget reconciliation, distribution statistics, threshold-routing and approval-decision summaries, scale, and seed. Generated core entities are validated against `src/supplier_ack/schema.py` before exporting by default. `event_count` counts acknowledgement revision rows plus ChangeRequest rows; Approval rows and PromiseDate revision rows are separate dependent records.
+Starter CSVs are written to `data/samples/`; full-scale CSVs are written to `data/generated/` (gitignored). Entity CSVs include `suppliers.csv`, `purchase_orders.csv`, `po_lines.csv`, `acknowledgements.csv`, `promise_dates.csv`, `change_requests.csv`, `approvals.csv`, `inventory_plans.csv`, `production_orders.csv`, `notifications.csv`, and the support bridges `production_order_line.csv`, `production_order_impact.csv`, and `notification_recipient.csv`, alongside reference masters. `silence_report.csv` contains overdue POs with no acknowledgement row. `coverage_report.csv` and `coverage_report.json` report observed counts and percentages for all eight required categories at both starter and full scales. `generation_summary.json` records row counts, event-budget reconciliation, distribution statistics, threshold-routing and approval-decision summaries, scale, and seed. Generated core entities are validated against `src/supplier_ack/schema.py` before exporting by default. `event_count` counts acknowledgement revision rows plus ChangeRequest rows; Approval rows and PromiseDate revision rows are separate dependent records.
 
 ## Verify
 

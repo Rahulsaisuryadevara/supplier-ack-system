@@ -153,7 +153,9 @@ def test_csv_export_writes_tables_and_summary_with_readable_columns(config, tmp_
     assert (output / "generation_summary.json").exists()
     for name, frame in frames.items():
         loaded = pd.read_csv(output / f"{name}.csv")
-        assert loaded.columns.tolist() == frame.columns.tolist()
+        expected_columns = [c for c in frame.columns if c not in {"issue_type", "ground_truth", "boundary"}]
+        assert loaded.columns.tolist() == expected_columns
+        assert not ({"issue_type", "ground_truth"} & set(loaded.columns))
         assert len(loaded) == len(frame)
 
 

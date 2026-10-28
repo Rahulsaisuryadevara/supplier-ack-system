@@ -2,7 +2,7 @@
   "acknowledgement_metrics": {
     "ack_coverage_pct": 95.0,
     "acknowledged_po_count": 190,
-    "average_current_date_slip_days": 1.6848,
+    "average_current_date_slip_days": 1.6682,
     "current_promised_line_count": 663,
     "latest_acknowledgement_count": 190,
     "partial_acceptance_count": 42,
@@ -15,6 +15,12 @@
       "3": 2,
       "4": 3
     }
+  },
+  "anomaly_injection": {
+    "ACK_WRONG_PO_LINE": 5,
+    "PROMISE_DATE_BEFORE_ORDER_DATE": 5,
+    "STALE_REVISION_OVERWRITE": 5,
+    "UNAPPROVED_CHANGE_UPDATES_PLAN": 5
   },
   "change_workflow": {
     "approval_decision_distribution": {
@@ -202,23 +208,63 @@
       "p90": 65.1
     }
   },
+  "downstream_schedule": {
+    "impact_counts_by_type": {
+      "date_conflict": 10,
+      "quantity_shortfall": 5
+    },
+    "impact_severity_distribution": {
+      "HIGH": 1,
+      "LOW": 6,
+      "MEDIUM": 8
+    },
+    "orders_at_risk": 5,
+    "orders_rescheduled": 10,
+    "production_orders": 100
+  },
   "event_counts": {
     "acknowledgement_plus_change_request_rows": 300,
     "acknowledgement_rows": 214,
     "change_request_rows": 86
   },
+  "ground_truth_row_count": 125,
+  "notification_workflow": {
+    "counts_by_type": {
+      "APPROVAL_DECISION": 118,
+      "CHANGE_RAISED": 86,
+      "DOWNSTREAM_IMPACT": 15,
+      "PLAN_UPDATED": 318,
+      "SUPPLIER_SILENCE_CHASE": 10,
+      "WEEKLY_SUMMARY": 2
+    },
+    "notification_count": 549,
+    "notifications_with_change_trace": 259,
+    "recipient_links": 887
+  },
+  "projected_supply": {
+    "approved_ack_versions": 290,
+    "approved_change_versions": 33,
+    "baseline_plan_versions": 791,
+    "effective_versions": 791,
+    "lines_held_at_baseline": 468
+  },
   "row_counts": {
-    "acknowledgement_lines": 873,
+    "acknowledgement_lines": 878,
     "acknowledgements": 214,
     "actors": 55,
     "approvals": 128,
     "carriers": 10,
     "change_requests": 86,
-    "entity_event": 675,
+    "entity_event": 2453,
+    "inventory_plans": 1114,
     "items": 50,
-    "notifications": 10,
+    "notification_recipient": 887,
+    "notifications": 549,
     "po_lines": 791,
-    "promise_dates": 669,
+    "production_order_impact": 15,
+    "production_order_line": 100,
+    "production_orders": 100,
+    "promise_dates": 674,
     "purchase_orders": 200,
     "suppliers": 40,
     "warehouses": 4

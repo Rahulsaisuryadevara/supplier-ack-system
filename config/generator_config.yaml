@@ -13,6 +13,7 @@ scales:
     carrier_warehouse_operator_count: 4
     logistics_analyst_count: 3
     operations_manager_count: 2
+    production_order_count: 100
   full:
     supplier_count: 200
     po_count: 10000
@@ -24,6 +25,7 @@ scales:
     carrier_warehouse_operator_count: 20
     logistics_analyst_count: 6
     operations_manager_count: 4
+    production_order_count: 5000
 
 # Changes within the planner thresholds are approved at planner level.
 # Changes outside those thresholds require operations_manager approval.
@@ -215,3 +217,31 @@ coverage:
     non_price_type_weights:
       QUANTITY_CHANGE: 0.50
       DATE_CHANGE: 0.50
+
+# Downstream impact gates are deterministic; severity is computed in
+# src/supplier_ack/rules/impact.py and documented in docs/decisions.md.
+downstream_impact_tolerances:
+  date_conflict_grace_days: 0
+  quantity_shortfall_pct: 0.0
+
+# Generation Step 7: edge cases are injected only after the baseline has passed
+# schema validation and derived-value reconciliation. Counts apply independently
+# to each required anomaly class. Labels are stripped from input/export tables.
+anomaly_injection:
+  enabled: true
+  counts:
+    starter:
+      UNAPPROVED_CHANGE_UPDATES_PLAN: 5
+      ACK_WRONG_PO_LINE: 5
+      PROMISE_DATE_BEFORE_ORDER_DATE: 5
+      STALE_REVISION_OVERWRITE: 5
+    full:
+      UNAPPROVED_CHANGE_UPDATES_PLAN: 25
+      ACK_WRONG_PO_LINE: 25
+      PROMISE_DATE_BEFORE_ORDER_DATE: 25
+      STALE_REVISION_OVERWRITE: 25
+  boundary_cases:
+    accepted_qty_equals_requested: 1
+    slip_days_equals_threshold: 1
+    price_delta_plus_threshold: 1
+    price_delta_minus_threshold: 1

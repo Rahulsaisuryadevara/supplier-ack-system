@@ -9,13 +9,13 @@ from numpy.random import Generator
 
 from supplier_ack.ids import IDFactory
 from supplier_ack.generators.common import active_scale_config, frame_for_entity, get_config, require_rng
+from supplier_ack.rules.derived import compute_line_total
 
 _CENTS = Decimal("0.01")
 
 
 def _money_product(quantity: Any, unit_price: Any) -> float:
-    amount = Decimal(str(quantity)) * Decimal(str(unit_price))
-    return float(amount.quantize(_CENTS, rounding=ROUND_HALF_UP))
+    return float(compute_line_total(quantity, unit_price))
 
 
 def generate_po_lines(

@@ -13,6 +13,7 @@ from numpy.random import Generator
 from supplier_ack.generators.common import at_utc, frame_for_entity, get_config, require_rng
 from supplier_ack.ids import IDFactory
 from supplier_ack.rules.thresholds import can_apply, computed_delta, evaluate_threshold
+from supplier_ack.rules.derived import derive_change_fields
 
 _EVENT_COLUMNS = [
     "event_id", "entity_type", "entity_id", "event_type", "event_timestamp",
@@ -195,7 +196,7 @@ def generate_changes(
             "previous_promised_date": requested_date, "requested_promised_date": requested_date,
             "previous_qty": None, "requested_qty": None, "previous_unit_price": None, "requested_unit_price": None,
             "threshold_name": "DATE_SLIP_DAYS", "created_at": requested_at,
-            "requested_by_role": "planner", "requested_by_actor_id": planners[(len(request_specs)) % len(planners)],
+            "requested_by_role": "planner", "requested_by_actor_id": str(po["planner_actor_id"]),
             "reason_code": "OTHER", "reason_text": f"No supplier acknowledgement by response_due_date {str(silence['response_due_at'])}; planner chase escalation required. No promise date is fabricated.",
             "is_silence": True, "silence_due_at": str(silence["response_due_at"]),
         })
@@ -296,6 +297,9 @@ def generate_changes(
         request_event_id = f"EVT-CHG-{sequence:06d}"
         issue_type = "DATE_SLIP_REQUIRES_APPROVAL" if rule["downstream_impact_flag"] else None
         ground_truth = issue_type
+        derived_change = derive_change_fields({
+            "change_type": spec["change_type"], "old_value": spec["old_value"], "new_value": spec["new_value"],
+        }, full_thresholds)
         request_row: dict[str, Any] = {
             "change_request_id": change_id,
             "po_id": po_id,
@@ -305,7 +309,10 @@ def generate_changes(
             "change_type": str(spec["change_type"]),
             "old_value": str(spec["old_value"]),
             "new_value": str(spec["new_value"]),
-            "delta": round(float(spec["delta"]), 4),
+            "delta": derived_change["delta"],
+            "delta_abs": derived_change["delta_abs"],
+            "delta_pct": derived_change["delta_pct"],
+            "required_approval_level": derived_change["required_approval_level"],
             "status": status,
             "requested_at": requested_at,
             "effective_date": effective_date,
@@ -368,11 +375,15 @@ def generate_changes(
             notification_id = factory.next_notification_id()
             notification_event_id = f"EVT-NOT-{len(notifications) + 1:06d}"
             notifications.append({
-                "notification_id": notification_id, "po_id": po_id, "ack_id": None,
+                "notification_id": notification_id, "not_id": notification_id,
+                "not_type": "SUPPLIER_SILENCE_CHASE", "severity": "HIGH",
+                "subject": "Supplier acknowledgement overdue — chase required",
+                "related_entity_type": "ChangeRequest", "related_entity_id": change_id,
+                "read_status": "UNREAD", "po_id": po_id, "open_impact_count": 0, "ack_id": None,
                 "change_request_id": change_id, "source_event_id": request_event_id,
                 "channel": "EMAIL", "status": "SENT",
                 "title": "Supplier acknowledgement overdue — chase required",
-                "body": f"No acknowledgement was received by {spec['silence_due_at']}. Contact supplier {supplier_for_po[po_id]} and record the response.",
+                "body": f"Notification {notification_id}: change {change_id}, PO {po_id}, supplier {supplier_for_po[po_id]} did not acknowledge by {spec['silence_due_at']}. Planner {po['planner_actor_id']} must chase the supplier and record the response.",
                 "scheduled_at": requested_at, "sent_at": requested_at, "delivered_at": None,
                 "retry_count": 0, "last_error": None, "created_at": requested_at,
                 "issue_type": None, "ground_truth": None,

@@ -14,6 +14,7 @@ from numpy.random import Generator
 
 from supplier_ack.generators.common import active_scale_config, at_utc, frame_for_entity, get_config, require_rng
 from supplier_ack.ids import IDFactory
+from supplier_ack.rules.derived import acknowledgement_status_value, compute_percent_delta, derive_promise_date
 from supplier_ack.schema import ACKNOWLEDGEMENT_LINE_FIELDS
 
 _CENT = Decimal("0.01")
@@ -448,15 +449,18 @@ def generate_acknowledgements_and_promises(
                 _decimal(line["requested_qty"], _QTY) * _decimal(revision_price_map[str(line["po_line_id"])], _CENT)
                 for line in po_lines_here
             ), Decimal("0.00")).quantize(_CENT, rounding=ROUND_HALF_UP)
-            qty_delta_pct = _signed_percent(accepted_qty - req_qty, req_qty)
-            price_delta_pct = _signed_percent(quoted_value - requested_value, requested_value)
+            derived_header_status = acknowledgement_status_value(req_qty, accepted_qty)
+            if derived_header_status != outcome:
+                raise RuntimeError(f"acknowledgement status is not reconciled for {po_id}: {outcome} vs {derived_header_status}")
+            qty_delta_pct = float(compute_percent_delta(req_qty, accepted_qty))
+            price_delta_pct = float(compute_percent_delta(requested_value, quoted_value))
             row = {
                 "ack_id": ack_id,
                 "po_id": po_id,
                 "supplier_id": supplier_id,
                 "po_line_id": None,
                 "revision_no": revision_no,
-                "status": outcome,
+                "status": derived_header_status,
                 "lifecycle_state": lifecycle_state,
                 "acknowledged_at": acknowledged_at,
                 "response_due_at": response_due_at,
@@ -608,6 +612,8 @@ def generate_acknowledgements_and_promises(
                     "sequence_no": sequence_no,
                     "revision_no": revision_no,
                     "promised_date": promise_day.isoformat(),
+                    "slip_days": derive_promise_date(promise_day.isoformat(), required_day.isoformat())["slip_days"],
+                    "is_late": derive_promise_date(promise_day.isoformat(), required_day.isoformat())["is_late"],
                     "promised_qty": float(accepted_qty),
                     "promise_confidence": confidence,
                     "ship_from_location": logistics["ship_from_location"],
@@ -724,9 +730,8 @@ def generate_acknowledgements_and_promises(
             )
             promise = promise_by_ack_line.get((ack_id, line_id))
             if promise is not None:
-                promise_day = date.fromisoformat(str(promise["promised_date"]))
-                required_day = date.fromisoformat(str(line["required_date"]))
-                date_slip = (promise_day - required_day).days
+                date_values = derive_promise_date(promise["promised_date"], line["required_date"])
+                date_slip = date_values["slip_days"]
             else:
                 date_slip = None
             outcome_status = "REJECTED" if accepted == 0 else "PARTIALLY_ACCEPTED" if rejected > 0 else "ACCEPTED"
@@ -744,8 +749,8 @@ def generate_acknowledgements_and_promises(
                 "rejected_reason": reason_by_po[po_id] if rejected > 0 else None,
                 "requested_unit_price": float(requested_price),
                 "acknowledged_unit_price": float(acknowledged_price),
-                "qty_delta_pct": _signed_percent(accepted - requested, requested),
-                "price_delta_pct": _signed_percent(acknowledged_price - requested_price, requested_price),
+                "qty_delta_pct": float(compute_percent_delta(requested, accepted)),
+                "price_delta_pct": float(compute_percent_delta(requested_price, acknowledged_price)),
                 "date_slip_days": date_slip,
                 "response_timestamp": str(ack_row["acknowledged_at"]),
                 "created_at": str(ack_row["created_at"]),
@@ -790,7 +795,9 @@ def generate_acknowledgements_and_promises(
                 "late_response": str(ack_row["lifecycle_state"]) == "EXCEPTION",
                 "line_count": len(lines_by_po[po_id]),
             }, sort_keys=True, separators=(",", ":")),
-            "previous_state": json.dumps(previous, sort_keys=True, default=str, separators=(",", ":")) if previous else None,
+            # Every ack_id is a distinct immutable revision entity. Its own lifecycle
+            # begins at SUBMITTED; do not compare it to the preceding revision's status.
+            "previous_state": json.dumps({"status": "SUBMITTED"}, sort_keys=True, separators=(",", ":")),
             "new_state": json.dumps(ack_row, sort_keys=True, default=str, separators=(",", ":")),
             "issue_type": ack_row.get("issue_type"),
             "ground_truth": ack_row.get("ground_truth"),

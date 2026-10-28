@@ -44,6 +44,8 @@ ANOMALY_TYPES = (
     "MISSING_APPROVAL", "LATE_ACKNOWLEDGEMENT", "LEAD_TIME_BREACH",
     "FOREIGN_KEY_MISMATCH", "LINE_TOTAL_MISMATCH", "NOTIFICATION_FAILURE",
     "PROJECTED_SHORTAGE", "PROMISE_BEFORE_ORDER", "STATUS_DATE_MISMATCH",
+    "UNAPPROVED_CHANGE_UPDATES_PLAN", "ACK_WRONG_PO_LINE",
+    "PROMISE_DATE_BEFORE_ORDER_DATE", "STALE_REVISION_OVERWRITE",
 )
 
 # Every status value is explicit, and each map lists only legal outgoing edges.
@@ -55,7 +57,7 @@ STATUS_ENUMS: dict[str, tuple[str, ...]] = {
     "ChangeRequest": ("DRAFT", "SUBMITTED", "UNDER_REVIEW", "APPROVED", "REJECTED", "IMPLEMENTED", "CANCELLED", "WITHDRAWN", "CLOSED"),
     "Approval": ("PENDING", "APPROVED", "REJECTED", "ESCALATED", "WITHDRAWN"),
     "InventoryPlan": ("DRAFT", "PROPOSED", "APPROVED", "REJECTED", "ACTIVE", "AT_RISK", "PARTIALLY_FULFILLED", "FULFILLED", "SUPERSEDED", "CANCELLED", "CLOSED"),
-    "ProductionOrder": ("DRAFT", "RELEASED", "SCHEDULED", "IN_PROGRESS", "PARTIALLY_COMPLETED", "ON_HOLD", "COMPLETED", "CANCELLED", "CLOSED"),
+    "ProductionOrder": ("PLANNED", "AT_RISK", "RESCHEDULED", "CONFIRMED", "DELAYED", "DRAFT", "RELEASED", "SCHEDULED", "IN_PROGRESS", "PARTIALLY_COMPLETED", "ON_HOLD", "COMPLETED", "CANCELLED", "CLOSED"),
     "Notification": ("QUEUED", "SENT", "DELIVERED", "BOUNCED", "RETRY_PENDING", "FAILED", "CANCELLED"),
 }
 STATUS_TRANSITIONS: dict[str, dict[str, tuple[str, ...]]] = {
@@ -97,6 +99,11 @@ STATUS_TRANSITIONS: dict[str, dict[str, tuple[str, ...]]] = {
         "SUPERSEDED": (), "CANCELLED": (), "CLOSED": (),
     },
     "ProductionOrder": {
+        "PLANNED": ("AT_RISK", "RESCHEDULED", "CONFIRMED", "DELAYED", "CANCELLED"),
+        "AT_RISK": ("RESCHEDULED", "CONFIRMED", "DELAYED", "CANCELLED"),
+        "RESCHEDULED": ("AT_RISK", "CONFIRMED", "DELAYED", "CANCELLED"),
+        "CONFIRMED": ("AT_RISK", "RESCHEDULED", "DELAYED", "CLOSED"),
+        "DELAYED": ("RESCHEDULED", "CONFIRMED", "CANCELLED", "CLOSED"),
         "DRAFT": ("RELEASED", "CANCELLED"), "RELEASED": ("SCHEDULED", "ON_HOLD", "CANCELLED"),
         "SCHEDULED": ("IN_PROGRESS", "ON_HOLD", "CANCELLED"),
         "IN_PROGRESS": ("PARTIALLY_COMPLETED", "COMPLETED", "ON_HOLD"),
@@ -320,6 +327,19 @@ def _check_enum(value: Any, record: Mapping[str, Any], context: Mapping[str, Any
     return None
 
 
+def _context_row(context: Mapping[str, Any], table: str, key: str, value: Any) -> Mapping[str, Any] | None:
+    """Look up a parent row using a validation-time index when available."""
+    indexes = context.get("_record_index_cache", {})
+    index = indexes.get((table, key)) if isinstance(indexes, Mapping) else None
+    if index is not None:
+        row = index.get(value)
+        return row if isinstance(row, Mapping) else None
+    for row in context.get(table, ()):
+        if isinstance(row, Mapping) and row.get(key) == value:
+            return row
+    return None
+
+
 def _check_foreign_key(value: Any, record: Mapping[str, Any], context: Mapping[str, Any], field: FieldSpec) -> str | None:
     if not field.foreign_key or not context: return None
     table, key = field.foreign_key.split(".", 1)
@@ -526,6 +546,9 @@ _entity("Supplier", "suppliers", "supplier_id", [
     F("lead_time_days", "INTEGER", True, "7–90 for generated supplier rows", "calendar days", "Not unique", "integer in [7,90] for generated masters", "int_7_90"),
     F("reliability_score", "DECIMAL(5,4)", True, "0.0000–1.0000 inclusive", "unit interval; 1 is most reliable", "Not unique", "finite decimal in [0,1]", "unit_interval"),
     F("on_time_rate", "DECIMAL(5,4)", True, "0.0000–1.0000 inclusive; positively correlated with reliability_score", "fraction of deliveries on time", "Not unique", "finite decimal in [0,1]; generated as a dependent function of reliability_score", "unit_interval"),
+    F("ack_rate", "DECIMAL(5,4)", True, "0.0000–1.0000; ACKed distinct POs / supplier PO count", "fraction", "Derived from PurchaseOrder and Acknowledgement", "recomputed from actual supplier PO and ACK rows", "unit_interval"),
+    F("on_time_promise_rate", "DECIMAL(5,4)", True, "0.0000–1.0000; on-time CURRENT promises / CURRENT promises", "fraction", "Derived from PromiseDate and POLine", "CURRENT promised dates on/before requested POLine date divided by current promises", "unit_interval"),
+    F("avg_slip_days", "DECIMAL(8,3)", True, "Average positive lateness across CURRENT promises", "calendar days", "Derived from PromiseDate and POLine", "mean of max(0, promised_date - requested_date), or 0 without promises", "nonnegative_decimal"),
     F("preferred_carrier_id", "VARCHAR(10)", True, "Existing CAR-###### carrier ID", "none", "Foreign key to carriers.carrier_id", "must reference an existing carrier master row", "carrier_id_format", foreign_key="carriers.carrier_id"),
     F("default_currency", "CHAR(3)", True, ", ".join(CURRENCIES), "ISO-4217 alphabetic code", "Not unique", "must be in supported currency list", "enum", CURRENCIES),
     F("data_owner_role", "ENUM", True, ", ".join(ACTOR_ROLES), "none", "Not unique", "must identify an owning actor role", "enum", ACTOR_ROLES),
@@ -626,6 +649,8 @@ _entity("PromiseDate", "promise_dates", "promise_date_id", [
     F("sequence_no", "INTEGER", True, "Integer 1–99 per ack_id; exactly 2 digits in ID", "sequence under ACK", "Unique per ack_id", "integer [1,99]; suffix embedded in promise_date_id", "int_1_99"),
     F("revision_no", "INTEGER", True, "Integer >= 1 per po_line_id", "promise revision", "Unique per (ack_id, po_line_id, revision_no)", "integer >= 1 and increments when line promise changes", "positive_int"),
     F("promised_date", "DATE", True, "Valid date >= PO order_date", "calendar date", "Not unique", "promised_date >= purchase_orders.order_date; no invalid pre-order promise", "iso_date"),
+    F("slip_days", "INTEGER", True, "Signed calendar-day difference from POLine.required_date", "calendar days", "Derived", "promised_date minus source POLine.required_date", "signed_int_365"),
+    F("is_late", "BOOLEAN", True, "True iff promised_date is after POLine.required_date", "boolean", "Derived", "equivalent to slip_days > 0", "basic_type"),
     F("promised_qty", "DECIMAL(12,3)", True, "0.000–99999999999.999", "quantity in PO-line UOM", "Not unique", "must equal accepted_qty in acknowledgement_lines for the same ack_id and po_line_id", "nonnegative_decimal"),
     F("promise_confidence", "ENUM", True, ", ".join(PROMISE_CONFIDENCE_LEVELS), "none", "Not unique", "HIGH/MEDIUM/LOW confidence derived from supplier reliability plus configured noise", "enum", PROMISE_CONFIDENCE_LEVELS),
     F("ship_from_location", "VARCHAR(160)", True, "Warehouse name in synthetic warehouse network", "location name", "Not unique", "must equal warehouses.warehouse_name for ship_from_warehouse_id", "nonblank"),
@@ -656,6 +681,9 @@ _entity("ChangeRequest", "change_requests", "change_request_id", [
     F("old_value", "VARCHAR(64)", True, "Source value as text: numeric for price/quantity; ISO date for date", "type-dependent", "Not unique", "non-empty value derived from source records", "nonblank"),
     F("new_value", "VARCHAR(64)", True, "Observed/proposed value as text: numeric for price/quantity; ISO date for date", "type-dependent", "Not unique", "non-empty value derived from source records", "nonblank"),
     F("delta", "DECIMAL(14,4)", True, "Signed % for price/quantity; signed calendar days for date", "type-dependent", "Not unique", "Computed from old_value and new_value, not independently sampled", "finite_decimal"),
+    F("delta_abs", "DECIMAL(14,4)", True, "Absolute value of delta", "type-dependent", "Derived", "abs(delta)", "nonnegative_decimal"),
+    F("delta_pct", "DECIMAL(14,4)", False, "Signed percentage for price/quantity; NULL for date changes", "percent", "Derived", "equals delta for price/quantity, NULL for date changes", "signed_percent"),
+    F("required_approval_level", "ENUM", True, "planner, operations_manager", "none", "Derived", "computed by configured threshold rules from source old/new values", "enum", ("planner", "operations_manager")),
     F("status", "ENUM", True, ", ".join(STATUS_ENUMS["ChangeRequest"]), "none", "Not unique", "enum and legal edge in STATUS_TRANSITIONS.ChangeRequest", "enum", STATUS_ENUMS["ChangeRequest"]),
     F("requested_at", "DATETIME", True, "Timezone-aware ISO datetime", "UTC recommended", "Not unique", "valid datetime", "iso_datetime"),
     F("effective_date", "DATE", True, "Valid date >= request date", "calendar date", "Not unique", "effective_date >= DATE(requested_at)", "iso_date"),
@@ -701,6 +729,12 @@ _entity("InventoryPlan", "inventory_plans", "inventory_plan_id", [
     F("po_id", "VARCHAR(16)", True, "Existing PurchaseOrder.po_id", "none", "Foreign key to purchase_orders.po_id", "must equal PO of po_line_id", "foreign_key", foreign_key="purchase_orders.po_id"),
     F("po_line_id", "VARCHAR(25)", True, "Existing POLine.po_line_id", "none", "Foreign key to po_lines.po_line_id", "must reference existing PO line", "foreign_key", foreign_key="po_lines.po_line_id"),
     F("plan_revision_no", "INTEGER", True, "Integer 1–99; 2-digit suffix in ID", "plan revision", "Unique per po_line_id", "integer [1,99]; suffix equals plan_revision_no", "int_1_99"),
+    F("plan_version", "INTEGER", True, "Append-only projection version, beginning at 1 per PO line", "version", "Unique per po_line_id and equal to plan_revision_no", "integer >= 1; monotonically increments per PO line", "positive_int"),
+    F("previous_version_id", "VARCHAR(32)", False, "Previous InventoryPlan version for the same PO line", "none", "Self foreign key to inventory_plans.inventory_plan_id", "NULL only for version 1; otherwise links to prior plan version", "foreign_key", foreign_key="inventory_plans.inventory_plan_id"),
+    F("source", "ENUM", True, "po_baseline, approved_ack, approved_change", "none", "Not unique", "Projection provenance; non-baseline rows require processed ACK/passed approval gate", "enum", ("po_baseline", "approved_ack", "approved_change")),
+    F("is_effective", "INTEGER", True, "0 or 1; exactly one effective version per PO line", "boolean flag", "One effective row per po_line_id", "1 only on latest version; history rows remain append-only", "basic_type"),
+    F("projected_delivery_date", "DATE", True, "Projected supply delivery date", "calendar date", "Not unique", "Derived from baseline required date or an approved current PromiseDate", "iso_date"),
+    F("change_request_id", "VARCHAR(40)", False, "Approved source change that caused this projection version", "none", "Foreign key to change_requests.change_request_id", "NULL for baseline and ACK-only projections; otherwise implemented change", "foreign_key", foreign_key="change_requests.change_request_id"),
     F("status", "ENUM", True, ", ".join(STATUS_ENUMS["InventoryPlan"]), "none", "Not unique", "enum and legal edge in STATUS_TRANSITIONS.InventoryPlan", "enum", STATUS_ENUMS["InventoryPlan"]),
     F("demand_qty", "DECIMAL(14,3)", True, "0–99999999999.999", "quantity in PO line UOM", "Not unique", "finite decimal >= 0", "nonnegative_decimal"),
     F("requested_qty", "DECIMAL(14,3)", True, "0–99999999999.999", "quantity in PO line UOM", "Not unique", "copied from POLine.requested_qty unless anomaly-labelled", "nonnegative_decimal"),
@@ -724,14 +758,19 @@ _entity("InventoryPlan", "inventory_plans", "inventory_plan_id", [
     F("updated_at", "DATETIME", True, "Timezone-aware ISO datetime", "UTC recommended", "Not unique", "updated_at >= created_at", "iso_datetime"),
     F("issue_type", "ENUM", False, "NULL for normal rows; otherwise listed anomaly class", "none", "Not unique", "NULL or value in ANOMALY_TYPES; pairs with ground_truth", "enum", ANOMALY_TYPES),
     F("ground_truth", "ENUM", False, "NULL for normal rows; otherwise source-truth anomaly class", "none", "Not unique", "NULL or value in ANOMALY_TYPES; pairs with issue_type", "enum", ANOMALY_TYPES),
-], status="status", unique=(("po_line_id", "plan_revision_no"),), full="30,000 initial plans (1 per PO line)", starter="600 initial plans (1 per PO line)", description="Inventory availability, receipts, shortage projection, ownership, and downstream plan revisions." )
+], status="status", unique=(("po_line_id", "plan_revision_no"),), full="39,876 baseline rows plus at most one approval-gated projection per PO line", starter="791 baseline rows plus at most one approval-gated projection per PO line at default seed", description="Append-only projected supply snapshots: one original PO-line baseline and at most one current approved promise/change projection per line." )
 
 _entity("ProductionOrder", "production_orders", "production_order_id", [
     F("production_order_id", "VARCHAR(16)", True, "PRO-2026- followed by exactly 6 digits", "none", "Primary key; globally unique", "fullmatch ^PRO-2026-\\d{6}$", "production_order_id_format", primary_key=True),
     F("inventory_plan_id", "VARCHAR(32)", True, "Existing InventoryPlan.inventory_plan_id", "none", "Foreign key to inventory_plans.inventory_plan_id", "must reference existing inventory plan", "foreign_key", foreign_key="inventory_plans.inventory_plan_id"),
     F("po_id", "VARCHAR(16)", True, "Existing PurchaseOrder.po_id", "none", "Foreign key to purchase_orders.po_id", "must equal plan PO", "foreign_key", foreign_key="purchase_orders.po_id"),
     F("po_line_id", "VARCHAR(25)", True, "Existing POLine.po_line_id", "none", "Foreign key to po_lines.po_line_id", "must equal plan PO line", "foreign_key", foreign_key="po_lines.po_line_id"),
+    F("required_by_date", "DATE", True, "Date component must be available to production", "calendar date", "Not unique", "valid ISO date; used to identify promise conflicts", "iso_date"),
+    F("planned_start_date", "DATE", True, "Current planned production start date", "calendar date", "Not unique", "valid ISO date and derived from the current projected delivery after rescheduling", "iso_date"),
     F("status", "ENUM", True, ", ".join(STATUS_ENUMS["ProductionOrder"]), "none", "Not unique", "enum and legal edge in STATUS_TRANSITIONS.ProductionOrder", "enum", STATUS_ENUMS["ProductionOrder"]),
+    F("at_risk", "BOOLEAN", True, "True for AT_RISK or DELAYED lifecycle state", "boolean", "Derived", "computed from current ProductionOrder.status", "basic_type"),
+    F("shortfall_qty", "DECIMAL(14,3)", True, "max(0, allocated_quantity - current projected supply)", "quantity in PO-line UOM", "Derived", "computed from production_order_line allocation and effective InventoryPlan projection", "nonnegative_decimal"),
+    F("delay_days", "INTEGER", True, "Positive days current projected delivery exceeds required_by_date; else 0", "calendar days", "Derived", "max(0, projected_delivery_date - required_by_date)", "nonnegative_int"),
     F("planned_qty", "DECIMAL(14,3)", True, "0.001–99999999999.999", "finished-good quantity", "Not unique", "finite decimal > 0", "positive_decimal"),
     F("released_qty", "DECIMAL(14,3)", True, "0–planned_qty", "finished-good quantity", "Not unique", "0 <= released_qty <= planned_qty", "nonnegative_decimal"),
     F("completed_qty", "DECIMAL(14,3)", True, "0–released_qty", "finished-good quantity", "Not unique", "0 <= completed_qty <= released_qty <= planned_qty", "nonnegative_decimal"),
@@ -753,7 +792,15 @@ _entity("ProductionOrder", "production_orders", "production_order_id", [
 
 _entity("Notification", "notifications", "notification_id", [
     F("notification_id", "VARCHAR(16)", True, "NOT-2026- followed by exactly 6 digits", "none", "Primary key; globally unique", "fullmatch ^NOT-2026-\\d{6}$", "notification_id_format", primary_key=True),
+    F("not_id", "VARCHAR(16)", True, "Same traceable identifier as notification_id", "none", "Unique alias for notification_id", "must equal notification_id", "nonblank"),
+    F("not_type", "VARCHAR(40)", True, "Template key describing the notification event", "none", "Not unique", "nonblank; e.g. CHANGE_RAISED, PLAN_UPDATED, DOWNSTREAM_IMPACT", "nonblank"),
+    F("severity", "ENUM", True, "INFO, LOW, MEDIUM, HIGH, CRITICAL", "none", "Not unique", "severity derived from event type/impact severity", "enum", ("INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL")),
+    F("subject", "VARCHAR(200)", True, "Rendered notification subject", "none", "Not unique", "non-empty; must match title", "nonblank"),
+    F("related_entity_type", "VARCHAR(40)", True, "Trace root entity type", "none", "Not unique", "entity ID in related_entity_id can be traced to its source PO/supplier", "nonblank"),
+    F("related_entity_id", "VARCHAR(40)", True, "Trace root entity ID", "none", "Not unique", "must be present and resolve to a source entity", "nonblank"),
+    F("read_status", "ENUM", True, "UNREAD, READ", "none", "Not unique", "read state is separate from send/delivery status", "enum", ("UNREAD", "READ")),
     F("po_id", "VARCHAR(16)", False, "Existing PurchaseOrder.po_id or NULL for a system-wide notice", "none", "Optional foreign key to purchase_orders.po_id", "NULL only for system-wide notices without an acknowledgement or change link", "foreign_key", foreign_key="purchase_orders.po_id"),
+    F("open_impact_count", "INTEGER", True, "Count of open downstream impacts for related PO", "impact records", "Derived", "counts impacts for PO whose production order remains AT_RISK or DELAYED", "nonnegative_int"),
     F("ack_id", "VARCHAR(30)", False, "Acknowledgement id or NULL when notification is not ack-specific", "none", "Optional foreign key to acknowledgements.ack_id", "if supplied, po_id must be supplied and acknowledgement must belong to it", "foreign_key", foreign_key="acknowledgements.ack_id"),
     F("change_request_id", "VARCHAR(40)", False, "ChangeRequest id or NULL when notification is unrelated to a change", "none", "Optional foreign key to change_requests.change_request_id", "if supplied, po_id must be supplied and change request must belong to it", "foreign_key", foreign_key="change_requests.change_request_id"),
     F("source_event_id", "VARCHAR(40)", False, "entity_event identifier or NULL for direct notifications", "none", "Optional foreign key to entity_event.event_id", "if supplied, event must exist in append-only entity event ledger", "foreign_key", foreign_key="entity_event.event_id"),
@@ -769,7 +816,7 @@ _entity("Notification", "notifications", "notification_id", [
     F("created_at", "DATETIME", True, "Timezone-aware ISO datetime", "UTC recommended", "Not unique", "valid datetime", "iso_datetime"),
     F("issue_type", "ENUM", False, "NULL for normal rows; NOTIFICATION_FAILURE or other listed anomaly", "none", "Not unique", "NULL or value in ANOMALY_TYPES; pairs with ground_truth", "enum", ANOMALY_TYPES),
     F("ground_truth", "ENUM", False, "NULL for normal rows; otherwise source-truth anomaly class", "none", "Not unique", "NULL or value in ANOMALY_TYPES; pairs with issue_type", "enum", ANOMALY_TYPES),
-], status="status", unique=(), full="15,000 initial notifications (one per generated event; recipient fan-out may add rows)", starter="300 initial notifications (one per generated event; recipient fan-out may add rows)", description="Traceable notification fan-out to supplier and operational role recipients, with delivery/retry outcome." )
+], status="status", unique=(), full="Event-driven: change, approval, plan, impact, silence, and weekly-summary notices; recipient links stored separately", starter="Event-driven notices including change, approval, plan, impact, silence, and weekly-summary events", description="Traceable notification fan-out to supplier and operational role recipients, with separate read status and delivery/retry outcome." )
 
 # The data dictionary itself is Generation Step 1; these later steps create the entity rows.
 _GENERATION_STEPS = {
@@ -923,18 +970,15 @@ def _entity_rule_promise(record: Mapping[str, Any], context: Mapping[str, Any]) 
     pid, aid, seq = record.get("promise_date_id"), record.get("ack_id"), _integer(record.get("sequence_no"))
     if isinstance(pid, str) and isinstance(aid, str) and seq is not None and pid != f"PD-{aid}-{seq:02d}": errors.append("promise_date_id must equal f'PD-{ack_id}-{sequence_no:02d}' (suffix is exactly 2 digits)")
     if record.get("carrier_id") and record.get("carrier_reference"):
-        carriers = context.get("carriers", ())
-        carrier = next((c for c in carriers if isinstance(c, Mapping) and c.get("carrier_id") == record.get("carrier_id")), None)
+        carrier = _context_row(context, "carriers", "carrier_id", record.get("carrier_id"))
         if carrier and carrier.get("carrier_code") != record.get("carrier_reference"):
             errors.append("carrier_reference must equal carrier master carrier_code")
     if record.get("ship_from_warehouse_id") and record.get("ship_from_location"):
-        warehouses = context.get("warehouses", ())
-        warehouse = next((w for w in warehouses if isinstance(w, Mapping) and w.get("warehouse_id") == record.get("ship_from_warehouse_id")), None)
+        warehouse = _context_row(context, "warehouses", "warehouse_id", record.get("ship_from_warehouse_id"))
         if warehouse and warehouse.get("warehouse_name") != record.get("ship_from_location"):
             errors.append("ship_from_location must equal warehouse master warehouse_name")
     if record.get("carrier_operator_actor_id"):
-        actors = context.get("actors", ())
-        operator = next((a for a in actors if isinstance(a, Mapping) and a.get("actor_id") == record.get("carrier_operator_actor_id")), None)
+        operator = _context_row(context, "actors", "actor_id", record.get("carrier_operator_actor_id"))
         if operator and operator.get("actor_role", operator.get("role")) != "carrier_warehouse_operator":
             errors.append("carrier_operator_actor_id must reference a carrier_warehouse_operator")
     return errors
@@ -949,6 +993,29 @@ def validate_acknowledgement_line_rows(
     header because one ACK ID identifies one revision, not multiple line rows.
     """
     errors: list[str] = []
+    # This helper is also public and may be called outside validate_dataset. Build
+    # only its missing FK index entries once rather than rebuilding sets per row.
+    local_context: Mapping[str, Any] = context
+    current_fk_cache = context.get("_fk_id_cache", {})
+    missing_fk_pairs = {
+        tuple(field.foreign_key.split(".", 1))
+        for field in ACKNOWLEDGEMENT_LINE_FIELDS
+        if field.foreign_key and (
+            not isinstance(current_fk_cache, Mapping)
+            or tuple(field.foreign_key.split(".", 1)) not in current_fk_cache
+        )
+    }
+    if missing_fk_pairs:
+        new_context = dict(context)
+        new_fk_cache = dict(current_fk_cache) if isinstance(current_fk_cache, Mapping) else {}
+        for table, key in missing_fk_pairs:
+            source = context.get(table, ())
+            new_fk_cache[(table, key)] = {
+                row.get(key) if isinstance(row, Mapping) else row for row in source
+            }
+        new_context["_fk_id_cache"] = new_fk_cache
+        local_context = new_context
+    context = local_context
     acknowledgements = context.get("Acknowledgement", context.get("acknowledgements", ()))
     purchase_orders = context.get("PurchaseOrder", context.get("purchase_orders", ()))
     po_lines = context.get("POLine", context.get("po_lines", ()))
@@ -1095,8 +1162,7 @@ def _entity_rule_change(record: Mapping[str, Any], context: Mapping[str, Any]) -
     if kind == "DATE_CHANGE" and _as_date(record.get("requested_promised_date")) is None: errors.append("DATE_CHANGE requires requested_promised_date")
     if kind == "DATE_CHANGE":
         requested_promise = _as_date(record.get("requested_promised_date"))
-        pos = context.get("purchase_orders", ())
-        parent = next((p for p in pos if isinstance(p, Mapping) and p.get("po_id") == record.get("po_id")), None)
+        parent = _context_row(context, "purchase_orders", "po_id", record.get("po_id"))
         po_order_date = _as_date(parent.get("order_date")) if parent else None
         if requested_promise and po_order_date and requested_promise < po_order_date:
             errors.append("requested_promised_date must be >= parent purchase_orders.order_date")
@@ -1135,7 +1201,14 @@ def _entity_rule_inventory(record: Mapping[str, Any], context: Mapping[str, Any]
         if shortage != expected: errors.append(f"projected_shortage_qty must equal max(0, demand_qty - projected_available_qty) ({expected})")
     if None not in (on,reserved) and reserved > on and not record.get("issue_type"): errors.append("reserved_qty must not exceed on_hand_qty unless row is anomaly-labelled")
     line_id, rev, ipid=record.get("po_line_id"),_integer(record.get("plan_revision_no")),record.get("inventory_plan_id")
+    version = _integer(record.get("plan_version"))
     if isinstance(line_id, str) and rev is not None and isinstance(ipid, str) and ipid != f"IP-{line_id}-{rev:02d}": errors.append("inventory_plan_id must equal f'IP-{po_line_id}-{plan_revision_no:02d}'")
+    if version is not None and rev is not None and version != rev: errors.append("plan_version must equal plan_revision_no")
+    if version == 1 and record.get("previous_version_id") is not None: errors.append("version 1 must have previous_version_id=NULL")
+    if version is not None and version > 1 and not record.get("previous_version_id"): errors.append("versions after 1 require previous_version_id")
+    if record.get("source") == "po_baseline" and version != 1: errors.append("po_baseline source is only valid for version 1")
+    if record.get("source") == "approved_change" and not record.get("change_request_id"): errors.append("approved_change source requires change_request_id")
+    if record.get("is_effective") not in (0, 1): errors.append("is_effective must be 0 or 1")
     start, end = _as_date(record.get("plan_start_date")), _as_date(record.get("plan_end_date"))
     if start and end and start > end: errors.append("plan_start_date must be <= plan_end_date")
     if record.get("status") in {"APPROVED", "ACTIVE", "AT_RISK", "PARTIALLY_FULFILLED", "FULFILLED"} and not record.get("approved_by_actor_id"):
@@ -1170,6 +1243,8 @@ def _entity_rule_notification(record: Mapping[str, Any], context: Mapping[str, A
     if record.get("status") == "DELIVERED" and not delivered: errors.append("DELIVERED notification requires delivered_at")
     if record.get("status") in {"FAILED", "BOUNCED"} and not str(record.get("last_error") or "").strip(): errors.append("FAILED or BOUNCED notification requires last_error")
     if record.get("status") in {"SENT", "DELIVERED", "BOUNCED"} and not sent: errors.append("SENT/DELIVERED/BOUNCED notification requires sent_at")
+    if record.get("notification_id") != record.get("not_id"): errors.append("not_id must equal notification_id")
+    if record.get("title") != record.get("subject"): errors.append("subject must equal title")
     return errors
 
 
@@ -1251,7 +1326,37 @@ def validate_dataset(records_by_entity: Mapping[str, Sequence[Mapping[str, Any]]
             fk_cache[(table, key)] = {
                 row.get(key) if isinstance(row, Mapping) else row for row in rows
             }
+    # The supporting acknowledgement-line snapshot table has field-level FKs too;
+    # include its definitions here or each snapshot validation would rebuild parent
+    # key sets for every child row at full scale.
+    fk_pairs.update(
+        tuple(field.foreign_key.split(".", 1))
+        for field in ACKNOWLEDGEMENT_LINE_FIELDS if field.foreign_key
+    )
+    for table, key in fk_pairs:
+        if (table, key) in fk_cache:
+            continue
+        rows = context.get(table)
+        if rows is not None:
+            fk_cache[(table, key)] = {
+                row.get(key) if isinstance(row, Mapping) else row for row in rows
+            }
     context["_fk_id_cache"] = fk_cache
+    # Several record rules compare against a small parent master but run once per
+    # child row. Pre-index parent rows to keep full-scale validation O(n), not O(n*m).
+    indexed_tables = {
+        ("purchase_orders", "po_id"),
+        ("actors", "actor_id"),
+        ("carriers", "carrier_id"),
+        ("warehouses", "warehouse_id"),
+    }
+    record_indexes = {}
+    for table, key in indexed_tables:
+        rows = context.get(table, ())
+        record_indexes[(table, key)] = {
+            row.get(key): row for row in rows if isinstance(row, Mapping)
+        }
+    context["_record_index_cache"] = record_indexes
     for entity_name, spec in ENTITIES.items():
         rows=records_by_entity.get(entity_name, records_by_entity.get(spec.table_name, ()))
         seen_pk=set()
@@ -1273,6 +1378,15 @@ def validate_dataset(records_by_entity: Mapping[str, Sequence[Mapping[str, Any]]
     ack_rows={r.get("ack_id"):r for r in records_by_entity.get("Acknowledgement", records_by_entity.get("acknowledgements", ())) }
     change_rows={r.get("change_request_id"):r for r in records_by_entity.get("ChangeRequest", records_by_entity.get("change_requests", ())) }
     plan_rows={r.get("inventory_plan_id"):r for r in records_by_entity.get("InventoryPlan", records_by_entity.get("inventory_plans", ())) }
+    acknowledgement_line_snapshot_by_key = {
+        (r.get("ack_id"), r.get("po_line_id")): r
+        for r in records_by_entity.get("acknowledgement_lines", ())
+        if isinstance(r, Mapping)
+    }
+    event_rows_for_validation = context.get("entity_event", context.get("events", ()))
+    event_ids_for_validation = {
+        r.get("event_id") for r in event_rows_for_validation if isinstance(r, Mapping)
+    }
     for name, rows in (("POLine", records_by_entity.get("POLine", records_by_entity.get("po_lines", ()))),
                        ("Acknowledgement", records_by_entity.get("Acknowledgement", records_by_entity.get("acknowledgements", ()))),
                        ("PromiseDate", records_by_entity.get("PromiseDate", records_by_entity.get("promise_dates", ()))),
@@ -1307,20 +1421,27 @@ def validate_dataset(records_by_entity: Mapping[str, Sequence[Mapping[str, Any]]
                 promised=_as_date(row.get("promised_date")); order_date=_as_date(parent_po.get("order_date")) if parent_po else None
                 if promised and order_date and promised < order_date: errors.append(f"PromiseDate[{index}]: promised_date must be >= parent PO order_date")
                 if ack is not None and row.get("promised_qty") is not None:
-                    line_snapshot = next((r for r in records_by_entity.get("acknowledgement_lines", ()) if r.get("ack_id") == row.get("ack_id") and r.get("po_line_id") == row.get("po_line_id")), None)
+                    line_snapshot = acknowledgement_line_snapshot_by_key.get((row.get("ack_id"), row.get("po_line_id")))
                     if line_snapshot is not None and _decimal(row.get("promised_qty")) != _decimal(line_snapshot.get("accepted_qty")):
                         errors.append(f"PromiseDate[{index}]: promised_qty must equal the corresponding acknowledgement line accepted_qty")
             if name == "ChangeRequest" and po_id in po_rows and row.get("supplier_id") != po_rows[po_id].get("supplier_id"):
                 errors.append(f"ChangeRequest[{index}]: supplier_id must match its purchase order")
-            if name == "InventoryPlan" and line_id in line_rows and line_rows[line_id].get("po_id") != po_id:
-                errors.append(f"InventoryPlan[{index}]: po_id must match po_lines.po_id")
+            if name == "InventoryPlan":
+                if line_id in line_rows and line_rows[line_id].get("po_id") != po_id:
+                    errors.append(f"InventoryPlan[{index}]: po_id must match po_lines.po_id")
+                if row.get("source") == "approved_change":
+                    linked_change = change_rows.get(row.get("change_request_id"))
+                    if linked_change is None or linked_change.get("status") != "IMPLEMENTED":
+                        errors.append(f"InventoryPlan[{index}]: approved_change version requires an IMPLEMENTED ChangeRequest")
+                    elif linked_change.get("po_line_id") != line_id or linked_change.get("po_id") != po_id:
+                        errors.append(f"InventoryPlan[{index}]: source ChangeRequest must belong to the same PO line")
             if name == "ProductionOrder":
                 plan=plan_rows.get(row.get("inventory_plan_id"))
                 if plan and (plan.get("po_id") != po_id or plan.get("po_line_id") != line_id): errors.append(f"ProductionOrder[{index}]: po_id and po_line_id must match referenced inventory plan")
             if name == "Notification":
                 if row.get("ack_id") in ack_rows and ack_rows[row.get("ack_id")].get("po_id") != po_id: errors.append(f"Notification[{index}]: ack_id must belong to po_id")
                 if row.get("change_request_id") in change_rows and change_rows[row.get("change_request_id")].get("po_id") != po_id: errors.append(f"Notification[{index}]: change_request_id must belong to po_id")
-                if row.get("source_event_id") and ("entity_event" in context or "events" in context) and row.get("source_event_id") not in {r.get("event_id") for r in context.get("entity_event", context.get("events", ())) if isinstance(r, Mapping)}:
+                if row.get("source_event_id") and ("entity_event" in context or "events" in context) and row.get("source_event_id") not in event_ids_for_validation:
                     errors.append(f"Notification[{index}]: source_event_id must exist in entity_event ledger")
     # Header totals must agree with their PO lines whenever both are present.
     lines_by_po: dict[str, list[Mapping[str, Any]]] = {}
@@ -1449,7 +1570,7 @@ def render_markdown_dictionary() -> str:
            "- Primary keys follow the ID formats in their field rows. Number suffixes are zero-padded; references embedded in IDs must match their FK fields.",
            "- Foreign keys naming support tables (`actors`, `items`, `warehouses`, `carriers`, `entity_event`) refer to supporting operational/master tables outside the ten core entities. Actor role values are `supplier`, `planner`, `carrier_warehouse_operator`, `logistics_analyst`, and `operations_manager`.",
            "- On `Acknowledgement`, a header-level row has `po_line_id = NULL`; when a line is the focus of an exception, it may be populated and must belong to `po_id`. The supporting `acknowledgement_lines` table stores an immutable full per-line snapshot for every ACK revision; `PromiseDate` stores the per-line promised quantity/date commitment.",
-           "- `issue_type` and `ground_truth` are both `NULL` for intentionally normal rows. Labelled anomaly rows populate both from `ANOMALY_TYPES`. This supports auditable synthetic anomaly cohorts.",
+           "- Anomaly injection occurs only after baseline schema validation and zero-mismatch reconciliation. `issue_type`, `ground_truth`, and boundary labels are internal/target metadata and are removed from all input/export tables; target labels are written separately to `ground_truth.csv` and `ground_truth.json`.",
            "- `line_total` is `ROUND_HALF_UP(requested_qty * unit_price, 2)`. On final acknowledgement states, `requested_qty = ack_accepted_qty + ack_rejected_qty`; pending/submitted acknowledgements can have no resolved quantity split yet.",
            "- Cross-table FK checks and ownership consistency checks run with `validate_dataset(...)`; row-level rules run with `validate_record(...)`. `is_legal_transition(...)` validates lifecycle transitions.", "",
            "## Entity volume summary", "",
@@ -1833,6 +1954,33 @@ CREATE TABLE IF NOT EXISTS production_order_line (
     PRIMARY KEY (production_order_id, po_line_id)
 );
 CREATE INDEX IF NOT EXISTS ix_production_order_line_po_line ON production_order_line(po_line_id, production_order_id);
+
+CREATE TABLE IF NOT EXISTS production_order_impact (
+    impact_id TEXT PRIMARY KEY NOT NULL CHECK (impact_id GLOB 'IMP-2026-[0-9][0-9][0-9][0-9][0-9][0-9]'),
+    production_order_id TEXT NOT NULL REFERENCES production_orders(production_order_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    change_request_id TEXT NOT NULL REFERENCES change_requests(change_request_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    po_line_id TEXT NOT NULL REFERENCES po_lines(po_line_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    impact_type TEXT NOT NULL CHECK (impact_type IN ('date_conflict', 'quantity_shortfall')),
+    severity TEXT NOT NULL CHECK (severity IN ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
+    slip_days INTEGER NOT NULL,
+    shortfall_pct DECIMAL(9,4) NOT NULL,
+    old_projected_delivery_date TEXT NOT NULL,
+    new_projected_delivery_date TEXT NOT NULL,
+    old_projected_qty DECIMAL(14,3) NOT NULL,
+    new_projected_qty DECIMAL(14,3) NOT NULL,
+    rescheduled_planned_start_date TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    CHECK (slip_days >= 0),
+    CHECK (shortfall_pct >= 0),
+    CHECK (CAST(old_projected_qty AS NUMERIC) >= 0 AND CAST(new_projected_qty AS NUMERIC) >= 0)
+);
+CREATE INDEX IF NOT EXISTS ix_production_order_impact_change ON production_order_impact(change_request_id, production_order_id);
+CREATE TRIGGER IF NOT EXISTS trg_production_order_impact_no_update
+BEFORE UPDATE ON production_order_impact
+BEGIN SELECT RAISE(ABORT, 'production_order_impact is append-only; UPDATE is forbidden'); END;
+CREATE TRIGGER IF NOT EXISTS trg_production_order_impact_no_delete
+BEFORE DELETE ON production_order_impact
+BEGIN SELECT RAISE(ABORT, 'production_order_impact is append-only; DELETE is forbidden'); END;
 """
 
 
@@ -2038,6 +2186,12 @@ WHEN OLD.po_id IS NOT NEW.po_id OR OLD.po_line_id IS NOT NEW.po_line_id OR OLD.p
  OR OLD.planner_actor_id IS NOT NEW.planner_actor_id OR OLD.approved_by_actor_id IS NOT NEW.approved_by_actor_id
  OR OLD.effective_date IS NOT NEW.effective_date OR OLD.created_at IS NOT NEW.created_at
 BEGIN SELECT RAISE(ABORT, 'inventory plan projection is immutable; insert a new plan revision'); END;
+CREATE TRIGGER IF NOT EXISTS trg_inventory_plan_append_only_update
+BEFORE UPDATE ON inventory_plans
+BEGIN SELECT RAISE(ABORT, 'InventoryPlan versions are append-only; insert a new version'); END;
+CREATE TRIGGER IF NOT EXISTS trg_inventory_plan_append_only_delete
+BEFORE DELETE ON inventory_plans
+BEGIN SELECT RAISE(ABORT, 'InventoryPlan versions are append-only; deletion is forbidden'); END;
 CREATE TRIGGER IF NOT EXISTS trg_terminal_approval_immutable
 BEFORE UPDATE ON approvals
 WHEN OLD.status IN ('APPROVED', 'REJECTED', 'WITHDRAWN')
@@ -2121,6 +2275,9 @@ def _build_create_schema_sql() -> str:
             '    lead_time_days INTEGER NOT NULL CHECK (lead_time_days BETWEEN 7 AND 90)',
             '    reliability_score DECIMAL(5,4) NOT NULL CHECK (reliability_score BETWEEN 0 AND 1)',
             '    on_time_rate DECIMAL(5,4) NOT NULL CHECK (on_time_rate BETWEEN 0 AND 1)',
+            '    ack_rate DECIMAL(5,4) NOT NULL CHECK (ack_rate BETWEEN 0 AND 1)',
+            '    on_time_promise_rate DECIMAL(5,4) NOT NULL CHECK (on_time_promise_rate BETWEEN 0 AND 1)',
+            '    avg_slip_days DECIMAL(8,3) NOT NULL CHECK (avg_slip_days >= 0)',
             '    preferred_carrier_id VARCHAR(10) NOT NULL REFERENCES carriers(carrier_id) ON UPDATE CASCADE ON DELETE RESTRICT',
             f'    default_currency CHAR(3) NOT NULL CHECK (default_currency IN ({", ".join(_sql_quote(x) for x in CURRENCIES)}))',
             f'    data_owner_role TEXT NOT NULL CHECK (data_owner_role IN ({", ".join(_sql_quote(x) for x in ACTOR_ROLES)}))',
@@ -2177,6 +2334,12 @@ WHEN NOT EXISTS (SELECT 1 FROM carriers c WHERE c.carrier_id = NEW.carrier_id AN
   OR NOT EXISTS (SELECT 1 FROM warehouses w WHERE w.warehouse_id = NEW.ship_from_warehouse_id AND w.warehouse_name = NEW.ship_from_location)
   OR NOT EXISTS (SELECT 1 FROM actors a WHERE a.actor_id = NEW.carrier_operator_actor_id AND a.actor_role = 'carrier_warehouse_operator')
 BEGIN SELECT RAISE(ABORT, 'promise logistics carrier, warehouse, and operator must match their masters'); END;
+CREATE TRIGGER IF NOT EXISTS trg_inventory_plans_no_update
+BEFORE UPDATE ON inventory_plans
+BEGIN SELECT RAISE(ABORT, 'inventory plan versions are append-only; UPDATE is forbidden'); END;
+CREATE TRIGGER IF NOT EXISTS trg_inventory_plans_no_delete
+BEFORE DELETE ON inventory_plans
+BEGIN SELECT RAISE(ABORT, 'inventory plan versions are append-only; DELETE is forbidden'); END;
 """)
     sections.append("COMMIT;")
     return "\n\n".join(sections)

@@ -9,6 +9,7 @@ import pandas as pd
 from numpy.random import Generator
 
 from supplier_ack.ids import IDFactory
+from supplier_ack.rules.derived import compute_po_total
 from supplier_ack.generators.common import (
     active_scale_config, at_utc, assert_probability_distribution, frame_for_entity, get_config,
     require_rng,
@@ -124,9 +125,9 @@ def finalize_purchase_order_totals(purchase_orders: pd.DataFrame, po_lines: pd.D
     """Derive header totals from computed line totals; never generate them independently."""
     updated = purchase_orders.copy(deep=True)
     totals: dict[str, Decimal] = {}
+    grouped: dict[str, list[Any]] = {}
     for row in po_lines[["po_id", "line_total"]].to_dict(orient="records"):
-        po_id = str(row["po_id"])
-        value = Decimal(str(row["line_total"])).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        totals[po_id] = totals.get(po_id, Decimal("0.00")) + value
-    updated["total_order_value"] = [float(totals.get(str(po_id), Decimal("0.00")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)) for po_id in updated["po_id"]]
+        grouped.setdefault(str(row["po_id"]), []).append(row["line_total"])
+    totals = {po_id: compute_po_total(values) for po_id, values in grouped.items()}
+    updated["total_order_value"] = [float(totals.get(str(po_id), Decimal("0.00"))) for po_id in updated["po_id"]]
     return updated

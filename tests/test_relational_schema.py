@@ -33,6 +33,9 @@ def _seed_reference_data(conn: sqlite3.Connection) -> None:
         "lead_time_days": 10,
         "reliability_score": 0.95,
         "on_time_rate": 0.93,
+        "ack_rate": 0.0,
+        "on_time_promise_rate": 0.0,
+        "avg_slip_days": 0.0,
         "preferred_carrier_id": "CAR-000001",
         "default_currency": "INR",
         "data_owner_role": "supplier",
@@ -99,7 +102,7 @@ def test_create_all_builds_complete_schema_with_foreign_keys_enabled():
         assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {spec.table_name for spec in ENTITIES.values()}.issubset(tables)
-        assert {"actors", "items", "warehouses", "carriers", "entity_event", "notification_recipient", "production_order_line"}.issubset(tables)
+        assert {"actors", "items", "warehouses", "carriers", "entity_event", "notification_recipient", "production_order_line", "production_order_impact"}.issubset(tables)
         for entity in ENTITIES.values():
             columns = {row[1] for row in conn.execute(f"PRAGMA table_info({entity.table_name})")}
             assert columns == {field.name for field in entity.fields}, entity.name
@@ -158,9 +161,12 @@ def test_notification_bridge_supports_role_fanout_and_system_wide_notices():
         _seed_reference_data(conn)
         # NULL PO/change links intentionally represent a system-wide notification.
         _insert(conn, "notifications", {
-            "notification_id": "NOT-2026-000001", "po_id": None, "ack_id": None,
+            "notification_id": "NOT-2026-000001", "not_id": "NOT-2026-000001",
+            "not_type": "WEEKLY_SUMMARY", "severity": "INFO", "subject": "System maintenance",
+            "related_entity_type": "system", "related_entity_id": "maintenance-2026-10-28",
+            "read_status": "UNREAD", "po_id": None, "ack_id": None,
             "change_request_id": None, "source_event_id": None, "channel": "IN_APP",
-            "status": "QUEUED", "title": "System maintenance", "body": "A planned system maintenance window is scheduled.",
+            "status": "QUEUED", "title": "System maintenance", "open_impact_count": 0, "body": "A planned system maintenance window is scheduled.",
             "scheduled_at": "2026-10-28T09:00:00Z", "sent_at": None, "delivered_at": None,
             "retry_count": 0, "last_error": None, "created_at": "2026-10-28T09:00:00Z",
             "issue_type": None, "ground_truth": None,
@@ -217,6 +223,37 @@ def test_acknowledgement_revision_payload_cannot_be_overwritten():
         assert conn.execute(
             "SELECT event_type FROM entity_event WHERE entity_type='Acknowledgement' AND entity_id='ACK-PO-2026-000001-01' ORDER BY rowid DESC LIMIT 1"
         ).fetchone()[0] == "ACKNOWLEDGEMENT_UPDATED"
+    finally:
+        conn.close()
+
+
+def test_inventory_plan_versions_are_append_only():
+    conn = create_all(":memory:")
+    try:
+        _seed_reference_data(conn)
+        _seed_po_and_line(conn)
+        _insert(conn, "inventory_plans", {
+            "inventory_plan_id": "IP-PO-2026-000001-L01-01",
+            "po_id": "PO-2026-000001", "po_line_id": "PO-2026-000001-L01",
+            "plan_revision_no": 1, "plan_version": 1, "previous_version_id": None,
+            "source": "po_baseline", "is_effective": 1,
+            "projected_delivery_date": "2026-11-10", "change_request_id": None,
+            "status": "ACTIVE", "demand_qty": 5, "requested_qty": 5,
+            "acknowledged_qty": 0, "promised_qty": 0, "projected_qty": 5,
+            "on_hand_qty": 0, "reserved_qty": 0, "planned_receipt_qty": 5,
+            "projected_available_qty": 5, "projected_shortage_qty": 0,
+            "required_date": "2026-11-10", "promised_date": None,
+            "plan_start_date": "2026-10-28", "plan_end_date": "2026-11-10",
+            "planner_actor_id": "PLN-000001", "approved_by_actor_id": "PLN-000001",
+            "effective_date": "2026-10-28", "superseded_by": None,
+            "created_at": "2026-10-28T09:00:00Z", "updated_at": "2026-10-28T09:00:00Z",
+            "issue_type": None, "ground_truth": None,
+        })
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            conn.execute("UPDATE inventory_plans SET is_effective=0 WHERE inventory_plan_id=?", ("IP-PO-2026-000001-L01-01",))
+        with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+            conn.execute("DELETE FROM inventory_plans WHERE inventory_plan_id=?", ("IP-PO-2026-000001-L01-01",))
+        assert conn.execute("SELECT is_effective FROM inventory_plans WHERE inventory_plan_id=?", ("IP-PO-2026-000001-L01-01",)).fetchone()[0] == 1
     finally:
         conn.close()
 
@@ -295,6 +332,7 @@ def test_approval_rows_are_immutable_and_appeals_require_new_rounds():
             "po_id": "PO-2026-000001", "supplier_id": "SUP-000001",
             "po_line_id": "PO-2026-000001-L01", "request_type": "PRICE_CHANGE",
             "change_type": "price", "old_value": "2.00", "new_value": "2.10", "delta": 5.0,
+            "delta_abs": 5.0, "delta_pct": 5.0, "required_approval_level": "planner",
             "status": "UNDER_REVIEW", "requested_at": "2026-10-28T10:00:00Z",
             "effective_date": "2026-10-29", "response_due_date": "2026-10-30",
             "previous_qty": None, "requested_qty": None,

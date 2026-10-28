@@ -8,7 +8,7 @@ This is the schema contract for synthetic data generation, persistence, workflow
 - Primary keys follow the ID formats in their field rows. Number suffixes are zero-padded; references embedded in IDs must match their FK fields.
 - Foreign keys naming support tables (`actors`, `items`, `warehouses`, `carriers`, `entity_event`) refer to supporting operational/master tables outside the ten core entities. Actor role values are `supplier`, `planner`, `carrier_warehouse_operator`, `logistics_analyst`, and `operations_manager`.
 - On `Acknowledgement`, a header-level row has `po_line_id = NULL`; when a line is the focus of an exception, it may be populated and must belong to `po_id`. The supporting `acknowledgement_lines` table stores an immutable full per-line snapshot for every ACK revision; `PromiseDate` stores the per-line promised quantity/date commitment.
-- `issue_type` and `ground_truth` are both `NULL` for intentionally normal rows. Labelled anomaly rows populate both from `ANOMALY_TYPES`. This supports auditable synthetic anomaly cohorts.
+- Anomaly injection occurs only after baseline schema validation and zero-mismatch reconciliation. `issue_type`, `ground_truth`, and boundary labels are internal/target metadata and are removed from all input/export tables; target labels are written separately to `ground_truth.csv` and `ground_truth.json`.
 - `line_total` is `ROUND_HALF_UP(requested_qty * unit_price, 2)`. On final acknowledgement states, `requested_qty = ack_accepted_qty + ack_rejected_qty`; pending/submitted acknowledgements can have no resolved quantity split yet.
 - Cross-table FK checks and ownership consistency checks run with `validate_dataset(...)`; row-level rules run with `validate_record(...)`. `is_legal_transition(...)` validates lifecycle transitions.
 
@@ -25,9 +25,9 @@ Counts are baseline generation targets, before revision/event-driven uplift and 
 | PromiseDate | `promise_date_id` | `ack_id` → `acknowledgements.ack_id`; `po_id` → `purchase_orders.po_id`; `po_line_id` → `po_lines.po_line_id`; `ship_from_warehouse_id` → `warehouses.warehouse_id`; `carrier_id` → `carriers.carrier_id`; `carrier_operator_actor_id` → `actors.actor_id`; `superseded_by` → `promise_dates.promise_date_id`; `created_by_actor_id` → `actors.actor_id` | 669 line-promise rows at default seed 20261022; count varies with accepted lines and ACK revisions / 34,097 line-promise rows at default seed 20261022; count varies with accepted lines and ACK revisions | Step 4 — line-level promise-date generation |
 | ChangeRequest | `change_request_id` | `po_id` → `purchase_orders.po_id`; `supplier_id` → `suppliers.supplier_id`; `po_line_id` → `po_lines.po_line_id`; `requested_by_actor_id` → `actors.actor_id` | 86 residual rows at default seed 20261022; ACK rows + ChangeRequest rows = 300 events / 4,197 residual rows at default seed 20261022; ACK rows + ChangeRequest rows = 15,000 events | Step 5 — change-request generation |
 | Approval | `approval_id` | `change_request_id` → `change_requests.change_request_id`; `approver_actor_id` → `actors.actor_id` | 128 append-only approval rows at default seed 20261022, including escalations and pending silence chases / 6,188 append-only approval rows at default seed 20261022, including escalations and pending silence chases | Step 5 — approval/decision generation |
-| InventoryPlan | `inventory_plan_id` | `po_id` → `purchase_orders.po_id`; `po_line_id` → `po_lines.po_line_id`; `planner_actor_id` → `actors.actor_id`; `approved_by_actor_id` → `actors.actor_id`; `superseded_by` → `inventory_plans.inventory_plan_id` | 600 initial plans (1 per PO line) / 30,000 initial plans (1 per PO line) | Step 6 — inventory-plan generation |
+| InventoryPlan | `inventory_plan_id` | `po_id` → `purchase_orders.po_id`; `po_line_id` → `po_lines.po_line_id`; `previous_version_id` → `inventory_plans.inventory_plan_id`; `change_request_id` → `change_requests.change_request_id`; `planner_actor_id` → `actors.actor_id`; `approved_by_actor_id` → `actors.actor_id`; `superseded_by` → `inventory_plans.inventory_plan_id` | 791 baseline rows plus at most one approval-gated projection per PO line at default seed / 39,876 baseline rows plus at most one approval-gated projection per PO line | Step 6 — inventory-plan generation |
 | ProductionOrder | `production_order_id` | `inventory_plan_id` → `inventory_plans.inventory_plan_id`; `po_id` → `purchase_orders.po_id`; `po_line_id` → `po_lines.po_line_id`; `owner_actor_id` → `actors.actor_id` | 100 initial production orders / 5,000 initial production orders (configurable planning slice) | Step 6 — downstream production-order generation |
-| Notification | `notification_id` | `po_id` → `purchase_orders.po_id`; `ack_id` → `acknowledgements.ack_id`; `change_request_id` → `change_requests.change_request_id`; `source_event_id` → `entity_event.event_id` | 300 initial notifications (one per generated event; recipient fan-out may add rows) / 15,000 initial notifications (one per generated event; recipient fan-out may add rows) | Step 7 — event-driven notification generation |
+| Notification | `notification_id` | `po_id` → `purchase_orders.po_id`; `ack_id` → `acknowledgements.ack_id`; `change_request_id` → `change_requests.change_request_id`; `source_event_id` → `entity_event.event_id` | Event-driven notices including change, approval, plan, impact, silence, and weekly-summary events / Event-driven: change, approval, plan, impact, silence, and weekly-summary notices; recipient links stored separately | Step 7 — event-driven notification generation |
 
 ## Entity lifecycle transitions
 
@@ -127,6 +127,11 @@ Counts are baseline generation targets, before revision/event-driven uplift and 
 
 | Current state | Legal next states |
 |---|---|
+| `PLANNED` | `AT_RISK`, `RESCHEDULED`, `CONFIRMED`, `DELAYED`, `CANCELLED` |
+| `AT_RISK` | `RESCHEDULED`, `CONFIRMED`, `DELAYED`, `CANCELLED` |
+| `RESCHEDULED` | `AT_RISK`, `CONFIRMED`, `DELAYED`, `CANCELLED` |
+| `CONFIRMED` | `AT_RISK`, `RESCHEDULED`, `DELAYED`, `CLOSED` |
+| `DELAYED` | `RESCHEDULED`, `CONFIRMED`, `CANCELLED`, `CLOSED` |
 | `DRAFT` | `RELEASED`, `CANCELLED` |
 | `RELEASED` | `SCHEDULED`, `ON_HOLD`, `CANCELLED` |
 | `SCHEDULED` | `IN_PROGRESS`, `ON_HOLD`, `CANCELLED` |
@@ -167,12 +172,15 @@ Supplier master, reliability/lead-time characteristics, carrier preference, cont
 | `lead_time_days` | `INTEGER` | Required | 7–90 for generated supplier rows | calendar days | Not unique | integer in [7,90] for generated masters |
 | `reliability_score` | `DECIMAL(5,4)` | Required | 0.0000–1.0000 inclusive | unit interval; 1 is most reliable | Not unique | finite decimal in [0,1] |
 | `on_time_rate` | `DECIMAL(5,4)` | Required | 0.0000–1.0000 inclusive; positively correlated with reliability_score | fraction of deliveries on time | Not unique | finite decimal in [0,1]; generated as a dependent function of reliability_score |
+| `ack_rate` | `DECIMAL(5,4)` | Required | 0.0000–1.0000; ACKed distinct POs / supplier PO count | fraction | Derived from PurchaseOrder and Acknowledgement | recomputed from actual supplier PO and ACK rows |
+| `on_time_promise_rate` | `DECIMAL(5,4)` | Required | 0.0000–1.0000; on-time CURRENT promises / CURRENT promises | fraction | Derived from PromiseDate and POLine | CURRENT promised dates on/before requested POLine date divided by current promises |
+| `avg_slip_days` | `DECIMAL(8,3)` | Required | Average positive lateness across CURRENT promises | calendar days | Derived from PromiseDate and POLine | mean of max(0, promised_date - requested_date), or 0 without promises |
 | `preferred_carrier_id` | `VARCHAR(10)` | Required | Existing CAR-###### carrier ID | none | Foreign key to carriers.carrier_id; **FK** `carriers.carrier_id` | must reference an existing carrier master row |
 | `default_currency` | `CHAR(3)` | Required | INR, USD, EUR, GBP, SGD, JPY, AUD, CAD | ISO-4217 alphabetic code | Not unique | must be in supported currency list |
 | `data_owner_role` | `ENUM` | Required | supplier, planner, carrier_warehouse_operator, logistics_analyst, operations_manager | none | Not unique | must identify an owning actor role |
 | `created_at` | `DATETIME` | Required | ISO-8601 datetime with timezone | UTC recommended | Not unique | parseable timezone-aware datetime |
 | `updated_at` | `DATETIME` | Required | ISO-8601 datetime with timezone | UTC recommended | Not unique | must be >= created_at |
-| `issue_type` | `ENUM` | Optional | NULL for normal rows; otherwise one of: MISSING_ACK, DATE_CONFLICT, DATE_SLIP_REQUIRES_APPROVAL, QUANTITY_MISMATCH, OVER_ACKNOWLEDGEMENT, PRICE_SPIKE, PRICE_MISMATCH, INVALID_TRANSITION, DUPLICATE_REVISION, MISSING_APPROVAL, LATE_ACKNOWLEDGEMENT, LEAD_TIME_BREACH, FOREIGN_KEY_MISMATCH, LINE_TOTAL_MISMATCH, NOTIFICATION_FAILURE, PROJECTED_SHORTAGE, PROMISE_BEFORE_ORDER, STATUS_DATE_MISMATCH | none | Not unique | NULL or value in ANOMALY_TYPES; pairs with ground_truth |
+| `issue_type` | `ENUM` | Optional | NULL for normal rows; otherwise one of: MISSING_ACK, DATE_CONFLICT, DATE_SLIP_REQUIRES_APPROVAL, QUANTITY_MISMATCH, OVER_ACKNOWLEDGEMENT, PRICE_SPIKE, PRICE_MISMATCH, INVALID_TRANSITION, DUPLICATE_REVISION, MISSING_APPROVAL, LATE_ACKNOWLEDGEMENT, LEAD_TIME_BREACH, FOREIGN_KEY_MISMATCH, LINE_TOTAL_MISMATCH, NOTIFICATION_FAILURE, PROJECTED_SHORTAGE, PROMISE_BEFORE_ORDER, STATUS_DATE_MISMATCH, UNAPPROVED_CHANGE_UPDATES_PLAN, ACK_WRONG_PO_LINE, PROMISE_DATE_BEFORE_ORDER_DATE, STALE_REVISION_OVERWRITE | none | Not unique | NULL or value in ANOMALY_TYPES; pairs with ground_truth |
 | `ground_truth` | `ENUM` | Optional | NULL for normal rows; otherwise source-truth anomaly class | none | Not unique | NULL or value in ANOMALY_TYPES; pairs with issue_type |
 
 ## PurchaseOrder
@@ -289,6 +297,8 @@ Line-specific promised dates, independently versioned and traceable to acknowled
 | `sequence_no` | `INTEGER` | Required | Integer 1–99 per ack_id; exactly 2 digits in ID | sequence under ACK | Unique per ack_id | integer [1,99]; suffix embedded in promise_date_id |
 | `revision_no` | `INTEGER` | Required | Integer >= 1 per po_line_id | promise revision | Unique per (ack_id, po_line_id, revision_no) | integer >= 1 and increments when line promise changes |
 | `promised_date` | `DATE` | Required | Valid date >= PO order_date | calendar date | Not unique | promised_date >= purchase_orders.order_date; no invalid pre-order promise |
+| `slip_days` | `INTEGER` | Required | Signed calendar-day difference from POLine.required_date | calendar days | Derived | promised_date minus source POLine.required_date |
+| `is_late` | `BOOLEAN` | Required | True iff promised_date is after POLine.required_date | boolean | Derived | equivalent to slip_days > 0 |
 | `promised_qty` | `DECIMAL(12,3)` | Required | 0.000–99999999999.999 | quantity in PO-line UOM | Not unique | must equal accepted_qty in acknowledgement_lines for the same ack_id and po_line_id |
 | `promise_confidence` | `ENUM` | Required | HIGH, MEDIUM, LOW | none | Not unique | HIGH/MEDIUM/LOW confidence derived from supplier reliability plus configured noise |
 | `ship_from_location` | `VARCHAR(160)` | Required | Warehouse name in synthetic warehouse network | location name | Not unique | must equal warehouses.warehouse_name for ship_from_warehouse_id |
@@ -325,6 +335,9 @@ Source-derived supplier/planner change requests with signed price/quantity perce
 | `old_value` | `VARCHAR(64)` | Required | Source value as text: numeric for price/quantity; ISO date for date | type-dependent | Not unique | non-empty value derived from source records |
 | `new_value` | `VARCHAR(64)` | Required | Observed/proposed value as text: numeric for price/quantity; ISO date for date | type-dependent | Not unique | non-empty value derived from source records |
 | `delta` | `DECIMAL(14,4)` | Required | Signed % for price/quantity; signed calendar days for date | type-dependent | Not unique | Computed from old_value and new_value, not independently sampled |
+| `delta_abs` | `DECIMAL(14,4)` | Required | Absolute value of delta | type-dependent | Derived | abs(delta) |
+| `delta_pct` | `DECIMAL(14,4)` | Optional | Signed percentage for price/quantity; NULL for date changes | percent | Derived | equals delta for price/quantity, NULL for date changes |
+| `required_approval_level` | `ENUM` | Required | planner, operations_manager | none | Derived | computed by configured threshold rules from source old/new values |
 | `status` | `ENUM` | Required | DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, IMPLEMENTED, CANCELLED, WITHDRAWN, CLOSED | none | Not unique | enum and legal edge in STATUS_TRANSITIONS.ChangeRequest |
 | `requested_at` | `DATETIME` | Required | Timezone-aware ISO datetime | UTC recommended | Not unique | valid datetime |
 | `effective_date` | `DATE` | Required | Valid date >= request date | calendar date | Not unique | effective_date >= DATE(requested_at) |
@@ -374,7 +387,7 @@ Lifecycle field: `status`. Full enum and legal transitions are listed in the lif
 
 ## InventoryPlan
 
-Inventory availability, receipts, shortage projection, ownership, and downstream plan revisions.
+Append-only projected supply snapshots: one original PO-line baseline and at most one current approved promise/change projection per line.
 
 | Field name | Data type | Required? | Allowed values / domain | Units | Uniqueness / key | Validation rule |
 |---|---|---|---|---|---|---|
@@ -382,6 +395,12 @@ Inventory availability, receipts, shortage projection, ownership, and downstream
 | `po_id` | `VARCHAR(16)` | Required | Existing PurchaseOrder.po_id | none | Foreign key to purchase_orders.po_id; **FK** `purchase_orders.po_id` | must equal PO of po_line_id |
 | `po_line_id` | `VARCHAR(25)` | Required | Existing POLine.po_line_id | none | Foreign key to po_lines.po_line_id; **FK** `po_lines.po_line_id` | must reference existing PO line |
 | `plan_revision_no` | `INTEGER` | Required | Integer 1–99; 2-digit suffix in ID | plan revision | Unique per po_line_id | integer [1,99]; suffix equals plan_revision_no |
+| `plan_version` | `INTEGER` | Required | Append-only projection version, beginning at 1 per PO line | version | Unique per po_line_id and equal to plan_revision_no | integer >= 1; monotonically increments per PO line |
+| `previous_version_id` | `VARCHAR(32)` | Optional | Previous InventoryPlan version for the same PO line | none | Self foreign key to inventory_plans.inventory_plan_id; **FK** `inventory_plans.inventory_plan_id` | NULL only for version 1; otherwise links to prior plan version |
+| `source` | `ENUM` | Required | po_baseline, approved_ack, approved_change | none | Not unique | Projection provenance; non-baseline rows require processed ACK/passed approval gate |
+| `is_effective` | `INTEGER` | Required | 0 or 1; exactly one effective version per PO line | boolean flag | One effective row per po_line_id | 1 only on latest version; history rows remain append-only |
+| `projected_delivery_date` | `DATE` | Required | Projected supply delivery date | calendar date | Not unique | Derived from baseline required date or an approved current PromiseDate |
+| `change_request_id` | `VARCHAR(40)` | Optional | Approved source change that caused this projection version | none | Foreign key to change_requests.change_request_id; **FK** `change_requests.change_request_id` | NULL for baseline and ACK-only projections; otherwise implemented change |
 | `status` | `ENUM` | Required | DRAFT, PROPOSED, APPROVED, REJECTED, ACTIVE, AT_RISK, PARTIALLY_FULFILLED, FULFILLED, SUPERSEDED, CANCELLED, CLOSED | none | Not unique | enum and legal edge in STATUS_TRANSITIONS.InventoryPlan |
 | `demand_qty` | `DECIMAL(14,3)` | Required | 0–99999999999.999 | quantity in PO line UOM | Not unique | finite decimal >= 0 |
 | `requested_qty` | `DECIMAL(14,3)` | Required | 0–99999999999.999 | quantity in PO line UOM | Not unique | copied from POLine.requested_qty unless anomaly-labelled |
@@ -418,7 +437,12 @@ Downstream production schedules affected by component availability or changed su
 | `inventory_plan_id` | `VARCHAR(32)` | Required | Existing InventoryPlan.inventory_plan_id | none | Foreign key to inventory_plans.inventory_plan_id; **FK** `inventory_plans.inventory_plan_id` | must reference existing inventory plan |
 | `po_id` | `VARCHAR(16)` | Required | Existing PurchaseOrder.po_id | none | Foreign key to purchase_orders.po_id; **FK** `purchase_orders.po_id` | must equal plan PO |
 | `po_line_id` | `VARCHAR(25)` | Required | Existing POLine.po_line_id | none | Foreign key to po_lines.po_line_id; **FK** `po_lines.po_line_id` | must equal plan PO line |
-| `status` | `ENUM` | Required | DRAFT, RELEASED, SCHEDULED, IN_PROGRESS, PARTIALLY_COMPLETED, ON_HOLD, COMPLETED, CANCELLED, CLOSED | none | Not unique | enum and legal edge in STATUS_TRANSITIONS.ProductionOrder |
+| `required_by_date` | `DATE` | Required | Date component must be available to production | calendar date | Not unique | valid ISO date; used to identify promise conflicts |
+| `planned_start_date` | `DATE` | Required | Current planned production start date | calendar date | Not unique | valid ISO date and derived from the current projected delivery after rescheduling |
+| `status` | `ENUM` | Required | PLANNED, AT_RISK, RESCHEDULED, CONFIRMED, DELAYED, DRAFT, RELEASED, SCHEDULED, IN_PROGRESS, PARTIALLY_COMPLETED, ON_HOLD, COMPLETED, CANCELLED, CLOSED | none | Not unique | enum and legal edge in STATUS_TRANSITIONS.ProductionOrder |
+| `at_risk` | `BOOLEAN` | Required | True for AT_RISK or DELAYED lifecycle state | boolean | Derived | computed from current ProductionOrder.status |
+| `shortfall_qty` | `DECIMAL(14,3)` | Required | max(0, allocated_quantity - current projected supply) | quantity in PO-line UOM | Derived | computed from production_order_line allocation and effective InventoryPlan projection |
+| `delay_days` | `INTEGER` | Required | Positive days current projected delivery exceeds required_by_date; else 0 | calendar days | Derived | max(0, projected_delivery_date - required_by_date) |
 | `planned_qty` | `DECIMAL(14,3)` | Required | 0.001–99999999999.999 | finished-good quantity | Not unique | finite decimal > 0 |
 | `released_qty` | `DECIMAL(14,3)` | Required | 0–planned_qty | finished-good quantity | Not unique | 0 <= released_qty <= planned_qty |
 | `completed_qty` | `DECIMAL(14,3)` | Required | 0–released_qty | finished-good quantity | Not unique | 0 <= completed_qty <= released_qty <= planned_qty |
@@ -441,12 +465,20 @@ Lifecycle field: `status`. Full enum and legal transitions are listed in the lif
 
 ## Notification
 
-Traceable notification fan-out to supplier and operational role recipients, with delivery/retry outcome.
+Traceable notification fan-out to supplier and operational role recipients, with separate read status and delivery/retry outcome.
 
 | Field name | Data type | Required? | Allowed values / domain | Units | Uniqueness / key | Validation rule |
 |---|---|---|---|---|---|---|
 | `notification_id` | `VARCHAR(16)` | Required | NOT-2026- followed by exactly 6 digits | none | Primary key; globally unique; **PK** | fullmatch ^NOT-2026-\d{6}$ |
+| `not_id` | `VARCHAR(16)` | Required | Same traceable identifier as notification_id | none | Unique alias for notification_id | must equal notification_id |
+| `not_type` | `VARCHAR(40)` | Required | Template key describing the notification event | none | Not unique | nonblank; e.g. CHANGE_RAISED, PLAN_UPDATED, DOWNSTREAM_IMPACT |
+| `severity` | `ENUM` | Required | INFO, LOW, MEDIUM, HIGH, CRITICAL | none | Not unique | severity derived from event type/impact severity |
+| `subject` | `VARCHAR(200)` | Required | Rendered notification subject | none | Not unique | non-empty; must match title |
+| `related_entity_type` | `VARCHAR(40)` | Required | Trace root entity type | none | Not unique | entity ID in related_entity_id can be traced to its source PO/supplier |
+| `related_entity_id` | `VARCHAR(40)` | Required | Trace root entity ID | none | Not unique | must be present and resolve to a source entity |
+| `read_status` | `ENUM` | Required | UNREAD, READ | none | Not unique | read state is separate from send/delivery status |
 | `po_id` | `VARCHAR(16)` | Optional | Existing PurchaseOrder.po_id or NULL for a system-wide notice | none | Optional foreign key to purchase_orders.po_id; **FK** `purchase_orders.po_id` | NULL only for system-wide notices without an acknowledgement or change link |
+| `open_impact_count` | `INTEGER` | Required | Count of open downstream impacts for related PO | impact records | Derived | counts impacts for PO whose production order remains AT_RISK or DELAYED |
 | `ack_id` | `VARCHAR(30)` | Optional | Acknowledgement id or NULL when notification is not ack-specific | none | Optional foreign key to acknowledgements.ack_id; **FK** `acknowledgements.ack_id` | if supplied, po_id must be supplied and acknowledgement must belong to it |
 | `change_request_id` | `VARCHAR(40)` | Optional | ChangeRequest id or NULL when notification is unrelated to a change | none | Optional foreign key to change_requests.change_request_id; **FK** `change_requests.change_request_id` | if supplied, po_id must be supplied and change request must belong to it |
 | `source_event_id` | `VARCHAR(40)` | Optional | entity_event identifier or NULL for direct notifications | none | Optional foreign key to entity_event.event_id; **FK** `entity_event.event_id` | if supplied, event must exist in append-only entity event ledger |
