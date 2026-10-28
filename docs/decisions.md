@@ -78,3 +78,30 @@
 - **Valid threshold boundaries:** The same post-baseline stage records one exact full-acceptance quantity boundary, exact positive and negative price-threshold cases, and an exact date-slip-threshold case. These are not anomalies: their ground-truth rows have `boundary=true`, no anomaly `issue_type`, and expected planner-level handling because thresholds are inclusive.
 - **Ground-truth records:** `ground_truth.csv` and `ground_truth.json` contain one row per injected anomaly plus exact boundary cases, an expected threshold decision for every ChangeRequest, and expected status/severity for every impacted ProductionOrder. `related_entity_ids` provides explicit lineage for each label.
 - **Leakage rule:** `issue_type`, `ground_truth`, and any internal `boundary` marker are stripped from every exported input CSV. JSON event payload/state snapshots have those label keys removed too. The export writer verifies every non-target CSV header and raises if a label column leaks. The separate target ground-truth files are intentionally exempt and must never be used as model input features.
+
+## Runtime workflow engine decisions
+
+- The live engine is a transactional SQLite adapter, not a second generator. It imports threshold and derived functions directly from `supplier_ack.rules.thresholds` and `supplier_ack.rules.derived`; approval level and delta are recalculated from source values on every relevant event.
+- `runtime_processed_event.event_id` is the idempotency key. Duplicate input event IDs are ignored; business state and audit changes are committed together. If processing fails, the business transaction rolls back and a durable `RUNTIME_EVENT_FAILURE` exception is stored separately.
+- Every input produces an `entity_event` receipt. Detailed state-change events are additional append-only records. Runtime exception and decision records are stored in separate append-only tables, each with rule ID, values/trace, severity or approver, and processing timestamp.
+- An `ack_submitted` event can create acknowledgement, acknowledgement-line and promise history, and may raise change requests, but it never creates an InventoryPlan version. Only `approval_decision` calls the shared `can_apply()` gate and can append an effective plan version. A caller-supplied `attempt_plan_update` is explicitly refused if there is no approved row at the required level.
+- Approval levels are always recomputed with `required_approval_level()` from the configured threshold policy. A decision at the wrong level is rejected and logged. Hard-limit breaches are rejected according to `evaluate_threshold()`; they are not randomly accepted.
+- A promise date before `PurchaseOrder.order_date` is rejected, the acknowledgement is marked `EXCEPTION`/`REJECTED`, and the planner is notified. An old revision is retained as a refusal/exception event and never becomes the effective acknowledgement.
+- `silence_timeout` creates a planner-routed date chase request and notifies both the owning planner and supplier. Plan changes notify the planner and logistics analyst; downstream delivery-slot impacts also notify the relevant carrier/warehouse operator when available.
+- Runtime `created_at`/decision timestamps use wall-clock time because they describe actual processing. These timestamps are not part of offline generated input records; the generator's historical timestamps remain seeded and reproducible.
+
+
+## CLI error handling and full-scale performance benchmark
+
+The unified `supplier-ack` / `python -m supplier_ack.cli` interface uses argparse for typed seeds and enumerated scales, validates required paths before loading, and converts runtime input/IO errors to concise command errors rather than Python tracebacks. Workflow SQLite connections enable `PRAGMA foreign_keys=ON` and reject database schemas that omit required foreign-key declarations. The `scripts/demo.sh` walkthrough copies the committed `data/samples/demo.db` to a disposable temporary database before processing events, keeping the seed demo reusable.
+
+Measured on 2026-10-28 in this environment (Python 3.13.5, pandas 2.2.3, NumPy 2.3.5, PyYAML 6.0.3, matplotlib 3.10.8; Linux x86_64), with the full-scale configuration of 10,000 POs and 15,000 acknowledgement-plus-change events:
+
+| Stage | Wall time | Peak RSS | Measurement notes |
+|---|---:|---:|---|
+| Generation core + writing source CSVs | 33.56 s | 725,232 KiB | Seed 20261022; 926,962 derived checks with zero mismatches |
+| CSV validation | 12.07 s | 605,600 KiB | 1,716,868 checked rows across 15 validator groups |
+| CSV/JSON/SQL export and SQLite seed verification | 27.46 s | 1,062,368 KiB | Includes `seed.sql`, fresh `seed.db`, row-count checks, and SQLite validation |
+| Total measured stages | 73.09 s | ~1.04 GiB peak | Sequential stages; maximum of the stage RSS values |
+
+An export-time hotspot in event-snapshot scrubbing was avoided by checking for label-key substrings before parsing JSON. The generator now writes only the requested scale (it no longer generates the opposite scale just to print a second coverage report), and CLI post-generation validation runs in a separate process so the generator's pandas frames do not overlap with the validator's table-loading memory. Timings are measurements from this environment; other machines vary with storage throughput and memory.

@@ -1,0 +1,32 @@
+{
+  "dataset": "C:\\Projects\\supplier-ack-system\\data\\samples",
+  "file_count": 14,
+  "files": {
+    "data_quality_report.md": "9c8134d79772fc8cc34e50c50c389277fa271d6244abfbc676e9a4a7b22df06c",
+    "decision_log.csv": "a5a4b0b4334ebeae44ff07f23c56b0c4f83e327a9bc956335d46caa18a4ef293",
+    "detection_report.csv": "237d0047c0c438d1d9055a32656e057dd426b842fb7035dbcfb563a0596f3ef7",
+    "detection_report.md": "5ea8042cfbb87f9587dd4cfb4eba4125a0c510f0b6fb748e650a22632222ffd6",
+    "exception_report.csv": "0066b024e32e7f5ca9817174d181e57dc6940cbf74fefefb354babc066577923",
+    "exception_report.md": "d85cb62baae8e14e9c0f462c576efca5120ccfe6ee831774657d5a343cf1cb76",
+    "figures\\ack_status_breakdown.png": "043bae14dbb04620d8b9accea4709c032325ef4953d2568708707ba73bf8b29a",
+    "figures\\changes_by_type_and_decision.png": "232a504f5b7d01a9d28d77b42b91b87ac8137de2498a85d22c7cdebd746ff01b",
+    "figures\\exception_counts_by_type.png": "5d58ef913445175c77bd5ccef6222f0ce0762da1e4225be37ca60c0527feddba",
+    "figures\\projected_vs_requested_supply.png": "a4910c913db5717ad89e9a3d4520bbe60d944c83d43ae39c4f265ac441163e89",
+    "figures\\supplier_slip_day_distribution.png": "12c117bb2b242e97300b6640735fccd9bd58e5edd99c236d50d09cfd030710b1",
+    "impact_report.csv": "e2f1963bc7b598b1d66d5444db377f01b00eabf59fcb1a199cff82c0a9ba8f8d",
+    "summary_report.md": "06eebfa16307ac93ad74d72f04bdc032d355c973bd32297d30ca383c6bd68324",
+    "supplier_scorecard.csv": "10855c88297d5b12a4462aead8a08cc7433a30659b7ded728859974bff4ffd21"
+  },
+  "metrics": {
+    "ack_rate_pct": 95.0,
+    "acknowledged_pos": 190,
+    "avg_slip_days": 1.6682,
+    "median_slip_days": -1.0,
+    "on_time_promise_rate_pct": 69.9849,
+    "partial_acceptance_rate_pct": 22.1053,
+    "promise_count": 663,
+    "purchase_orders": 200,
+    "revision_rate_pct": 8.0,
+    "silence_rate_pct": 5.0
+  }
+}

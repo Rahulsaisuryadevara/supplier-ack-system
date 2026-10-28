@@ -46,85 +46,13 @@
   "config_source": "config/generator_config.yaml",
   "coverage_report": [
     {
-      "category": "date_slips",
-      "count": 10129,
-      "denominator": 33762,
-      "percentage": 30.001,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.3
-    },
-    {
-      "category": "full_acceptance",
-      "count": 6650,
-      "denominator": 9500,
-      "percentage": 70.0,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.7
-    },
-    {
-      "category": "full_rejection",
-      "count": 760,
-      "denominator": 9500,
-      "percentage": 8.0,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.08
-    },
-    {
-      "category": "multiple_revisions",
-      "count": 800,
-      "denominator": 10000,
-      "percentage": 8.0,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.08
-    },
-    {
-      "category": "on_time_promises",
-      "count": 23633,
-      "denominator": 33762,
-      "percentage": 69.999,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.7
-    },
-    {
       "category": "partial_acceptance",
-      "count": 2090,
-      "denominator": 9500,
-      "percentage": 22.0,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.22
-    },
-    {
-      "category": "price_changes",
-      "count": 2026,
-      "denominator": 33762,
-      "percentage": 6.001,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.06
-    },
-    {
-      "category": "supplier_silence",
-      "count": 500,
-      "denominator": 10000,
-      "percentage": 5.0,
-      "scale": "full",
-      "seed": 20261022,
-      "target_proportion": 0.05
-    },
-    {
-      "category": "date_slips",
-      "count": 199,
-      "denominator": 663,
-      "percentage": 30.015,
+      "count": 42,
+      "denominator": 190,
+      "percentage": 22.105,
       "scale": "starter",
       "seed": 20261022,
-      "target_proportion": 0.3
+      "target_proportion": 0.22
     },
     {
       "category": "full_acceptance",
@@ -145,13 +73,13 @@
       "target_proportion": 0.08
     },
     {
-      "category": "multiple_revisions",
-      "count": 16,
-      "denominator": 200,
-      "percentage": 8.0,
+      "category": "date_slips",
+      "count": 199,
+      "denominator": 663,
+      "percentage": 30.015,
       "scale": "starter",
       "seed": 20261022,
-      "target_proportion": 0.08
+      "target_proportion": 0.3
     },
     {
       "category": "on_time_promises",
@@ -161,15 +89,6 @@
       "scale": "starter",
       "seed": 20261022,
       "target_proportion": 0.7
-    },
-    {
-      "category": "partial_acceptance",
-      "count": 42,
-      "denominator": 190,
-      "percentage": 22.105,
-      "scale": "starter",
-      "seed": 20261022,
-      "target_proportion": 0.22
     },
     {
       "category": "price_changes",
@@ -188,6 +107,15 @@
       "scale": "starter",
       "seed": 20261022,
       "target_proportion": 0.05
+    },
+    {
+      "category": "multiple_revisions",
+      "count": 16,
+      "denominator": 200,
+      "percentage": 8.0,
+      "scale": "starter",
+      "seed": 20261022,
+      "target_proportion": 0.08
     }
   ],
   "distributions": {

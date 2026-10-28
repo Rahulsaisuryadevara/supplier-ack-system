@@ -322,7 +322,7 @@
     },
     {
       "check_name": "15_committed_file_secret_scan",
-      "checked_rows": 130,
+      "checked_rows": 129,
       "expected_anomaly_count": 0,
       "failure_count": 0,
       "sample_failures": [],

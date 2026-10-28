@@ -441,3 +441,13 @@ conn.close()
 ## Export artifacts
 
 Generation Step 9 exports the canonical dataset without changing identifiers or business values. CSV table files are placed in `data/generated/csv/`; JSON arrays and a JSON export manifest are placed in `data/generated/json/`; and SQLite `seed.sql` / `seed.db` are placed in `data/generated/sql/`. `data/generated/manifest.json` is the source manifest and contains config, seed/scale, git commit, dependency versions, row counts, and SHA-256 checksums. Ground-truth labels remain in separate ground-truth files and are not exported as entity input columns. The SQL seed declares foreign keys; FK enforcement is disabled only during import so labelled anomalous rows can be preserved and assessed by the ground-truth-aware validator.
+
+## Runtime audit extensions
+
+The live SQLite workflow adds three operational audit tables to the seed database at first runtime use; they are runtime metadata and are not part of the deterministic generator's exported historical dataset:
+
+- `runtime_processed_event`: idempotency key, input event type/payload, outcome, and processing timestamp. A duplicate `event_id` is ignored.
+- `runtime_exception`: append-only exception queue with rule ID, severity, entity type/ID, JSON entity trace, message, and timestamp.
+- `runtime_decision`: append-only threshold/approval decision log with rule ID, compared values, required approval level, approver, and timestamp.
+
+Each live input also appends an `entity_event` receipt. Detailed lifecycle changes are recorded as separate event rows. Runtime audit timestamps represent real processing time; they do not rewrite the generated records, whose historical timestamps remain seeded and reproducible.

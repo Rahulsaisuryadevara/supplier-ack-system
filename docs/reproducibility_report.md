@@ -14,9 +14,9 @@ python -m supplier_ack.cli verify-reproducibility --seed 20261022 --scale starte
 
 - Generator config: `config/generator_config.yaml`
 - Run directory: `.reproducibility`
-- Python: `3.12.0` (CPython)
-- Platform: `Windows-11-10.0.22631-SP0`
-- Dependencies: numpy `2.5.4`, pandas `2.2.3`, PyYAML `6.0.2`, pytest `9.2.0`
+- Python: `3.13.5` (CPython)
+- Platform: `Linux-6.18.55-x86_64-with-glibc2.41`
+- Dependencies: numpy `2.3.5`, pandas `2.2.3`, PyYAML `6.0.3`, pytest `9.0.2`
 
 Each run executes `generate_dataset(config, scale, seed, validate=False, inject_anomalies=True)` and `write_generated_data(..., publish_ground_truth=False)` in a fresh Python subprocess. Outputs are written before the next run starts, and generated business/event timestamps derive from seeded entity dates; no wall-clock time is used in dataset records. Manifest generation timestamps, where present, are operational metadata only.
 
@@ -36,10 +36,15 @@ write_generated_data(frames, config, 'starter', 20261022, output_dir=Path('.repr
 frames = generate_dataset(config, scale='starter', seed=20261022, validate=False, inject_anomalies=True)
 write_generated_data(frames, config, 'starter', 20261022, output_dir=Path('.reproducibility/starter/run2'), publish_ground_truth=False)
 
-# run3
+# run3 (counter-property)
 frames = generate_dataset(config, scale='starter', seed=20261023, validate=False, inject_anomalies=True)
 write_generated_data(frames, config, 'starter', 20261023, output_dir=Path('.reproducibility/starter/run3'), publish_ground_truth=False)
 
+# Full-scale pair
+frames = generate_dataset(config, scale='full', seed=20261022, validate=False, inject_anomalies=True)
+write_generated_data(frames, config, 'full', 20261022, output_dir=Path('.reproducibility/full/run1'), publish_ground_truth=False)
+frames = generate_dataset(config, scale='full', seed=20261022, validate=False, inject_anomalies=True)
+write_generated_data(frames, config, 'full', 20261022, output_dir=Path('.reproducibility/full/run2'), publish_ground_truth=False)
 ```
 
 ## Same-seed row counts and per-table SHA-256
@@ -80,11 +85,11 @@ write_generated_data(frames, config, 'starter', 20261023, output_dir=Path('.repr
 | carriers.csv | ec0ed19aa084df97a1569862cfeb7c046f5e569a2f2838b0ea55cff256102b2f | ec0ed19aa084df97a1569862cfeb7c046f5e569a2f2838b0ea55cff256102b2f | YES |
 | change_requests.csv | a907156b1a94637556835a58e34ca791dc74a11e77f9ea75603fd63b27b7daeb | a907156b1a94637556835a58e34ca791dc74a11e77f9ea75603fd63b27b7daeb | YES |
 | coverage_report.csv | baf26b1020d783192eeec19fca577e08aaed82a70232adae76d87456d325acc2 | baf26b1020d783192eeec19fca577e08aaed82a70232adae76d87456d325acc2 | YES |
-| coverage_report.json | 9bc2a42d554c61ca9d84c6467910fcf32f2f1fbe598a45daa9acb71c5948eeda | 9bc2a42d554c61ca9d84c6467910fcf32f2f1fbe598a45daa9acb71c5948eeda | YES |
+| coverage_report.json | 3d68d6db275512a24ae0d00d99f795091410d69c1e9431d810a6e979454c38e8 | 3d68d6db275512a24ae0d00d99f795091410d69c1e9431d810a6e979454c38e8 | YES |
 | entity_event.csv | 11dff242534b6c3338d5d252558d36ecf79c4e8b752c7569be03658ceddd6031 | 11dff242534b6c3338d5d252558d36ecf79c4e8b752c7569be03658ceddd6031 | YES |
-| generation_summary.json | b6f0ffa916ab8ca5ee6ad7e058db0fd5bb2e89f930d051e012356d43662c8590 | b6f0ffa916ab8ca5ee6ad7e058db0fd5bb2e89f930d051e012356d43662c8590 | YES |
+| generation_summary.json | b82cd3068b0f84787188723eb139460e7c8c5f75dd15919ae14320a9f7d2abb1 | b82cd3068b0f84787188723eb139460e7c8c5f75dd15919ae14320a9f7d2abb1 | YES |
 | ground_truth.csv | 4c0274daeaf49369f48638a203f4120e02ed9c5029979f647fe8cfe80a310b6b | 4c0274daeaf49369f48638a203f4120e02ed9c5029979f647fe8cfe80a310b6b | YES |
-| ground_truth.json | 3b5d2c698bf76015a8cb411fc0542fc22a3e8896ab9c03871d2e8d760de3a97e | 3b5d2c698bf76015a8cb411fc0542fc22a3e8896ab9c03871d2e8d760de3a97e | YES |
+| ground_truth.json | 3af56d0a2a3dd04f0c6c8b1e19849d99525d3a1a1ef573bf0aa1adf5f218b94b | 3af56d0a2a3dd04f0c6c8b1e19849d99525d3a1a1ef573bf0aa1adf5f218b94b | YES |
 | inventory_plans.csv | d909ba8c0ae7a102dafff1b7e9620eaf75fdf8dbbf4ac2438e53981200055e97 | d909ba8c0ae7a102dafff1b7e9620eaf75fdf8dbbf4ac2438e53981200055e97 | YES |
 | items.csv | 5ef5ec08a107dfe738d7533b32e646cbfab5bc589d8bb36d2011dabfdd1d9333 | 5ef5ec08a107dfe738d7533b32e646cbfab5bc589d8bb36d2011dabfdd1d9333 | YES |
 | notification_recipient.csv | 5482aae6abfd3907829afa98a79c15de4b4e2e3cf8c98fb849d615bac545d667 | 5482aae6abfd3907829afa98a79c15de4b4e2e3cf8c98fb849d615bac545d667 | YES |
@@ -137,11 +142,11 @@ write_generated_data(frames, config, 'starter', 20261023, output_dir=Path('.repr
 | carriers.csv | ec0ed19aa084df97a1569862cfeb7c046f5e569a2f2838b0ea55cff256102b2f | e041c7987bf76e7c17653dd79774b83a643701116ac03af37af2393db898e748 | NO |
 | change_requests.csv | a907156b1a94637556835a58e34ca791dc74a11e77f9ea75603fd63b27b7daeb | bd5a54272a46dd988bf96cdbde84f3cc4766a44c58c8b774f3a590eab7184b79 | NO |
 | coverage_report.csv | baf26b1020d783192eeec19fca577e08aaed82a70232adae76d87456d325acc2 | ff412bd5a4f36075d0d53e122f8b2f39969866954f0d2a07840d3721d7830490 | NO |
-| coverage_report.json | 9bc2a42d554c61ca9d84c6467910fcf32f2f1fbe598a45daa9acb71c5948eeda | 10bc2118792b64a7e1ecdcc40eabcc2cc5759193b948c524853556a762b9ee9d | NO |
+| coverage_report.json | 3d68d6db275512a24ae0d00d99f795091410d69c1e9431d810a6e979454c38e8 | 9aa7ae83a82600fc8c5898e7c30f18a366b129e5d9aff2a57c206ee387c009de | NO |
 | entity_event.csv | 11dff242534b6c3338d5d252558d36ecf79c4e8b752c7569be03658ceddd6031 | 2e64294a34187a948ad1b863b1a3a7bfc45970d7f0afbd33772cdb4183a33ea3 | NO |
-| generation_summary.json | b6f0ffa916ab8ca5ee6ad7e058db0fd5bb2e89f930d051e012356d43662c8590 | 9d1f2f07de8d48b63fd036d444beb3d255fbbb0314f22722930163b618f18533 | NO |
+| generation_summary.json | b82cd3068b0f84787188723eb139460e7c8c5f75dd15919ae14320a9f7d2abb1 | c9c4c01ab01a1e4a5ac7672284d5c307f5f9cbcf39b301ea4cc27a9234259c61 | NO |
 | ground_truth.csv | 4c0274daeaf49369f48638a203f4120e02ed9c5029979f647fe8cfe80a310b6b | 9775d924bf3627a6c8399d01abc33972ff343d5541171ccb9848d325830899fd | NO |
-| ground_truth.json | 3b5d2c698bf76015a8cb411fc0542fc22a3e8896ab9c03871d2e8d760de3a97e | 4d43f4cfbb0b246871360b2b3f2a420c352a8abdd03f174c7c01971121ca8a1e | NO |
+| ground_truth.json | 3af56d0a2a3dd04f0c6c8b1e19849d99525d3a1a1ef573bf0aa1adf5f218b94b | efa350f5d02d40300afbbcb72ed8ed284650fa7b1c092bba6d15a1b53be72b64 | NO |
 | inventory_plans.csv | d909ba8c0ae7a102dafff1b7e9620eaf75fdf8dbbf4ac2438e53981200055e97 | 230ac04c7cf58d4b6341bfaf6e9f50c37aaa6a0712007dcf8e5f661e703814a6 | NO |
 | items.csv | 5ef5ec08a107dfe738d7533b32e646cbfab5bc589d8bb36d2011dabfdd1d9333 | c1477763eb886081b85d24ba2fb45c29ea13b72d2b212789360d657b6abcdfd2 | NO |
 | notification_recipient.csv | 5482aae6abfd3907829afa98a79c15de4b4e2e3cf8c98fb849d615bac545d667 | b0f33c90feff7cd0293b226456fe804b30abde7bee230d04835323e857a1f597 | NO |
@@ -637,7 +642,528 @@ Each column is hashed from sorted, typed, null-aware values; table/file checksum
 
 ## Full-scale same-seed double-generation
 
-Full-scale double-generation was skipped or the selected scale was already `full`.
+**Full-scale result: PASS**
+
+| table_name | rows_run1 | rows_run2 | checksum_run1 | checksum_run2 | match |
+| --- | --- | --- | --- | --- | --- |
+| acknowledgement_lines | 43570 | 43570 | a842823662b73cd146b86efd08f90bd78f1378c2d5e2788c9e050c31dd1780bd | a842823662b73cd146b86efd08f90bd78f1378c2d5e2788c9e050c31dd1780bd | YES |
+| acknowledgements | 10803 | 10803 | 855d26c28acb985500b4746c0baf5658d0d7b2fdb05c09871ad1c9ce77a0087d | 855d26c28acb985500b4746c0baf5658d0d7b2fdb05c09871ad1c9ce77a0087d | YES |
+| actors | 242 | 242 | e4c43bef0f74874ac181415e122d5ba2149b9b9038c30374918998ea75bf2194 | e4c43bef0f74874ac181415e122d5ba2149b9b9038c30374918998ea75bf2194 | YES |
+| approvals | 6188 | 6188 | af43af4741e4ff57c50a87fab5ad97d20f03a5355e45242d590e2005652354dc | af43af4741e4ff57c50a87fab5ad97d20f03a5355e45242d590e2005652354dc | YES |
+| carriers | 20 | 20 | 4014de36117d151c44a6b1006dc0bc1c41ee8b8bfa9703bf9c1d8ff407a7fc93 | 4014de36117d151c44a6b1006dc0bc1c41ee8b8bfa9703bf9c1d8ff407a7fc93 | YES |
+| change_requests | 4197 | 4197 | 6613738403938266dc73c1e47ad3ab1c69215aa98fdfba3d5256a45e6b8546f8 | 6613738403938266dc73c1e47ad3ab1c69215aa98fdfba3d5256a45e6b8546f8 | YES |
+| coverage_report | 8 | 8 | 2fac8a5ed7cbfeea1cff07471cd3ada90534fc913f5a77e0bf7f0d36a5b33f59 | 2fac8a5ed7cbfeea1cff07471cd3ada90534fc913f5a77e0bf7f0d36a5b33f59 | YES |
+| entity_event | 124767 | 124767 | 466bf6ef06970c760d8d299a32f064b737fe15dd39855478adb9085631673d4b | 466bf6ef06970c760d8d299a32f064b737fe15dd39855478adb9085631673d4b | YES |
+| ground_truth | 5191 | 5191 | 3c882ff0ed4837cc4e1686d5d8e560b82510a5bf2e5d7447ac178e9aea61d896 | 3c882ff0ed4837cc4e1686d5d8e560b82510a5bf2e5d7447ac178e9aea61d896 | YES |
+| inventory_plans | 56876 | 56876 | c0997504b1cc3d1e804e5f7ffa82346e7c82a37f7790b2aa2fb7d04e69dba3a7 | c0997504b1cc3d1e804e5f7ffa82346e7c82a37f7790b2aa2fb7d04e69dba3a7 | YES |
+| items | 50 | 50 | 78719d09777b0ea644f64e9d773bedc9bcb59df8193b242fe7bc2054d1782c68 | 78719d09777b0ea644f64e9d773bedc9bcb59df8193b242fe7bc2054d1782c68 | YES |
+| notification_recipient | 46244 | 46244 | 682b6e8b64a2599a97c38ad3e5718b999e7edb6b93b3973f80033f271f346d1a | 682b6e8b64a2599a97c38ad3e5718b999e7edb6b93b3973f80033f271f346d1a | YES |
+| notifications | 28305 | 28305 | 36da6a04ae0a7271c7ae2d4ecbf1b9dfe2e53358aee5deb9c4b7dea21bc1d2a5 | 36da6a04ae0a7271c7ae2d4ecbf1b9dfe2e53358aee5deb9c4b7dea21bc1d2a5 | YES |
+| po_lines | 39876 | 39876 | 1fa2143879f0452b0ea486b14207690b15ca0c704468957c8f031ac54f2f30e3 | 1fa2143879f0452b0ea486b14207690b15ca0c704468957c8f031ac54f2f30e3 | YES |
+| production_order_impact | 941 | 941 | cb0f61c865fdad17444babea7758bd7c8f3c280ca1b6821501071489a411dd0a | cb0f61c865fdad17444babea7758bd7c8f3c280ca1b6821501071489a411dd0a | YES |
+| production_order_line | 5000 | 5000 | 724921506f6450a46246e6528042584aafd603e53758093d4774747b767a1eeb | 724921506f6450a46246e6528042584aafd603e53758093d4774747b767a1eeb | YES |
+| production_orders | 5000 | 5000 | 0ce412536347fcabea9b4e7ef481212b90c3b7be5b13a3e4fedd11e781e4b847 | 0ce412536347fcabea9b4e7ef481212b90c3b7be5b13a3e4fedd11e781e4b847 | YES |
+| promise_dates | 34122 | 34122 | 31db2ccd9e6abc6fb34dd2b5432291898fa1467f5d8655a03f95a127f6abde7a | 31db2ccd9e6abc6fb34dd2b5432291898fa1467f5d8655a03f95a127f6abde7a | YES |
+| purchase_orders | 10000 | 10000 | 2603500ca332bb26d5558871a869303dfbd420cb0e1c6a3917d04db0f34c3e16 | 2603500ca332bb26d5558871a869303dfbd420cb0e1c6a3917d04db0f34c3e16 | YES |
+| silence_report | 500 | 500 | 3a3a3abc9ecb9c4c7d3629fa210f68f4ccb33e019c21c575e932c07ed21b7c6e | 3a3a3abc9ecb9c4c7d3629fa210f68f4ccb33e019c21c575e932c07ed21b7c6e | YES |
+| suppliers | 200 | 200 | 85003d85a5175264e549c11ca4601db97993fc1006181bffd9e8bad23a5b7fcb | 85003d85a5175264e549c11ca4601db97993fc1006181bffd9e8bad23a5b7fcb | YES |
+| warehouses | 8 | 8 | c92feb8197ec26eedd528d3f43a34d6e5e640e01b97640b9bb4363d62125b9a2 | c92feb8197ec26eedd528d3f43a34d6e5e640e01b97640b9bb4363d62125b9a2 | YES |
+
+### Full-scale per-file SHA-256
+
+| file | sha256_run1 | sha256_run2 | match |
+| --- | --- | --- | --- |
+| acknowledgement_lines.csv | a842823662b73cd146b86efd08f90bd78f1378c2d5e2788c9e050c31dd1780bd | a842823662b73cd146b86efd08f90bd78f1378c2d5e2788c9e050c31dd1780bd | YES |
+| acknowledgements.csv | 855d26c28acb985500b4746c0baf5658d0d7b2fdb05c09871ad1c9ce77a0087d | 855d26c28acb985500b4746c0baf5658d0d7b2fdb05c09871ad1c9ce77a0087d | YES |
+| actors.csv | e4c43bef0f74874ac181415e122d5ba2149b9b9038c30374918998ea75bf2194 | e4c43bef0f74874ac181415e122d5ba2149b9b9038c30374918998ea75bf2194 | YES |
+| approvals.csv | af43af4741e4ff57c50a87fab5ad97d20f03a5355e45242d590e2005652354dc | af43af4741e4ff57c50a87fab5ad97d20f03a5355e45242d590e2005652354dc | YES |
+| carriers.csv | 4014de36117d151c44a6b1006dc0bc1c41ee8b8bfa9703bf9c1d8ff407a7fc93 | 4014de36117d151c44a6b1006dc0bc1c41ee8b8bfa9703bf9c1d8ff407a7fc93 | YES |
+| change_requests.csv | 6613738403938266dc73c1e47ad3ab1c69215aa98fdfba3d5256a45e6b8546f8 | 6613738403938266dc73c1e47ad3ab1c69215aa98fdfba3d5256a45e6b8546f8 | YES |
+| coverage_report.csv | 2fac8a5ed7cbfeea1cff07471cd3ada90534fc913f5a77e0bf7f0d36a5b33f59 | 2fac8a5ed7cbfeea1cff07471cd3ada90534fc913f5a77e0bf7f0d36a5b33f59 | YES |
+| coverage_report.json | 4b351eb62d6365912b29b8c862ec80b529de16ae6beb69bd3eff5e65a7db0757 | 4b351eb62d6365912b29b8c862ec80b529de16ae6beb69bd3eff5e65a7db0757 | YES |
+| entity_event.csv | 466bf6ef06970c760d8d299a32f064b737fe15dd39855478adb9085631673d4b | 466bf6ef06970c760d8d299a32f064b737fe15dd39855478adb9085631673d4b | YES |
+| generation_summary.json | 28484ca58df2bac64730922fd9b7de2f3bfa9838b351f0f0a3b1d6729c998cbd | 28484ca58df2bac64730922fd9b7de2f3bfa9838b351f0f0a3b1d6729c998cbd | YES |
+| ground_truth.csv | 3c882ff0ed4837cc4e1686d5d8e560b82510a5bf2e5d7447ac178e9aea61d896 | 3c882ff0ed4837cc4e1686d5d8e560b82510a5bf2e5d7447ac178e9aea61d896 | YES |
+| ground_truth.json | 6cdf2669f50489fd424372f4121a45b9f2fbd3f1c89e98bde476f10946293f31 | 6cdf2669f50489fd424372f4121a45b9f2fbd3f1c89e98bde476f10946293f31 | YES |
+| inventory_plans.csv | c0997504b1cc3d1e804e5f7ffa82346e7c82a37f7790b2aa2fb7d04e69dba3a7 | c0997504b1cc3d1e804e5f7ffa82346e7c82a37f7790b2aa2fb7d04e69dba3a7 | YES |
+| items.csv | 78719d09777b0ea644f64e9d773bedc9bcb59df8193b242fe7bc2054d1782c68 | 78719d09777b0ea644f64e9d773bedc9bcb59df8193b242fe7bc2054d1782c68 | YES |
+| notification_recipient.csv | 682b6e8b64a2599a97c38ad3e5718b999e7edb6b93b3973f80033f271f346d1a | 682b6e8b64a2599a97c38ad3e5718b999e7edb6b93b3973f80033f271f346d1a | YES |
+| notifications.csv | 36da6a04ae0a7271c7ae2d4ecbf1b9dfe2e53358aee5deb9c4b7dea21bc1d2a5 | 36da6a04ae0a7271c7ae2d4ecbf1b9dfe2e53358aee5deb9c4b7dea21bc1d2a5 | YES |
+| po_lines.csv | 1fa2143879f0452b0ea486b14207690b15ca0c704468957c8f031ac54f2f30e3 | 1fa2143879f0452b0ea486b14207690b15ca0c704468957c8f031ac54f2f30e3 | YES |
+| production_order_impact.csv | cb0f61c865fdad17444babea7758bd7c8f3c280ca1b6821501071489a411dd0a | cb0f61c865fdad17444babea7758bd7c8f3c280ca1b6821501071489a411dd0a | YES |
+| production_order_line.csv | 724921506f6450a46246e6528042584aafd603e53758093d4774747b767a1eeb | 724921506f6450a46246e6528042584aafd603e53758093d4774747b767a1eeb | YES |
+| production_orders.csv | 0ce412536347fcabea9b4e7ef481212b90c3b7be5b13a3e4fedd11e781e4b847 | 0ce412536347fcabea9b4e7ef481212b90c3b7be5b13a3e4fedd11e781e4b847 | YES |
+| promise_dates.csv | 31db2ccd9e6abc6fb34dd2b5432291898fa1467f5d8655a03f95a127f6abde7a | 31db2ccd9e6abc6fb34dd2b5432291898fa1467f5d8655a03f95a127f6abde7a | YES |
+| purchase_orders.csv | 2603500ca332bb26d5558871a869303dfbd420cb0e1c6a3917d04db0f34c3e16 | 2603500ca332bb26d5558871a869303dfbd420cb0e1c6a3917d04db0f34c3e16 | YES |
+| silence_report.csv | 3a3a3abc9ecb9c4c7d3629fa210f68f4ccb33e019c21c575e932c07ed21b7c6e | 3a3a3abc9ecb9c4c7d3629fa210f68f4ccb33e019c21c575e932c07ed21b7c6e | YES |
+| suppliers.csv | 85003d85a5175264e549c11ca4601db97993fc1006181bffd9e8bad23a5b7fcb | 85003d85a5175264e549c11ca4601db97993fc1006181bffd9e8bad23a5b7fcb | YES |
+| warehouses.csv | c92feb8197ec26eedd528d3f43a34d6e5e640e01b97640b9bb4363d62125b9a2 | c92feb8197ec26eedd528d3f43a34d6e5e640e01b97640b9bb4363d62125b9a2 | YES |
+
+### Full-scale per-column value checksums
+
+| table_name | column_name | checksum_run1 | checksum_run2 | match |
+| --- | --- | --- | --- | --- |
+| acknowledgement_lines | accepted_qty | c07dce7d3e859359f24be5b5bc407629ebc5ad3e17ea0adaf0c2f8dbf7b69295 | c07dce7d3e859359f24be5b5bc407629ebc5ad3e17ea0adaf0c2f8dbf7b69295 | YES |
+| acknowledgement_lines | ack_id | 3473b40d590ff36b22c4d1a594066dabb4709ae70666a1724003c0f6501b866c | 3473b40d590ff36b22c4d1a594066dabb4709ae70666a1724003c0f6501b866c | YES |
+| acknowledgement_lines | acknowledged_unit_price | 69e82472d1552d7ed34c2e7a68bd6a25adb04b1ebe10ac58c1a7e143fe8e47b4 | 69e82472d1552d7ed34c2e7a68bd6a25adb04b1ebe10ac58c1a7e143fe8e47b4 | YES |
+| acknowledgement_lines | acknowledgement_line_id | f55cbc475eef75d7e85265ebad0dd95548518382d9d208a7071972bf2ed014dd | f55cbc475eef75d7e85265ebad0dd95548518382d9d208a7071972bf2ed014dd | YES |
+| acknowledgement_lines | created_at | e0b1392899d6ab8125bd98f3ecb8bf663f8d97a7272408dc946923974dec1457 | e0b1392899d6ab8125bd98f3ecb8bf663f8d97a7272408dc946923974dec1457 | YES |
+| acknowledgement_lines | created_by_actor_id | 0240fe0ee7222d704521fef3a1f7e8ce79fc555b7ea1e1836dde3327b55e77a3 | 0240fe0ee7222d704521fef3a1f7e8ce79fc555b7ea1e1836dde3327b55e77a3 | YES |
+| acknowledgement_lines | created_by_role | f2549543034319f82569e2a0435415c17da7656e0cfdab2b7365b66b9a058b21 | f2549543034319f82569e2a0435415c17da7656e0cfdab2b7365b66b9a058b21 | YES |
+| acknowledgement_lines | date_slip_days | 890b818c6767ba2ca6b9c0747b154e79526bd7f5d4cbd577c4fbbfb4e5222137 | 890b818c6767ba2ca6b9c0747b154e79526bd7f5d4cbd577c4fbbfb4e5222137 | YES |
+| acknowledgement_lines | po_id | bf43ba0a3db82cee65996e4728731f5c8e62f281e00b461b0fab229d197cb32e | bf43ba0a3db82cee65996e4728731f5c8e62f281e00b461b0fab229d197cb32e | YES |
+| acknowledgement_lines | po_line_id | a88b95bdb7f9354b71baeae6a098234c29bae22cf5f808094cdbf7e76110bf91 | a88b95bdb7f9354b71baeae6a098234c29bae22cf5f808094cdbf7e76110bf91 | YES |
+| acknowledgement_lines | price_delta_pct | 29cb90f2fdc33355aeb803d967eac408dbcf37a0ba1875c7c25cd7400ea94c26 | 29cb90f2fdc33355aeb803d967eac408dbcf37a0ba1875c7c25cd7400ea94c26 | YES |
+| acknowledgement_lines | qty_delta_pct | 59b894b5e984bfb9a050a4885bbedf9d676d36e522c54bd9fbec7ea656e79bf8 | 59b894b5e984bfb9a050a4885bbedf9d676d36e522c54bd9fbec7ea656e79bf8 | YES |
+| acknowledgement_lines | rejected_qty | afd8004a38a98dbb75edca730fcb53a0eeecdf7073f78a2ff8e64577b6943d05 | afd8004a38a98dbb75edca730fcb53a0eeecdf7073f78a2ff8e64577b6943d05 | YES |
+| acknowledgement_lines | rejected_reason | 5f837ab0d910a923134222b6098d9b64dcb4d83497c81628b29a1cb4eaa07ddd | 5f837ab0d910a923134222b6098d9b64dcb4d83497c81628b29a1cb4eaa07ddd | YES |
+| acknowledgement_lines | requested_qty | acda206ee2356f07f9bf8a2ae2d8eca6fe0d084ec282242cc71c3385e36cd31d | acda206ee2356f07f9bf8a2ae2d8eca6fe0d084ec282242cc71c3385e36cd31d | YES |
+| acknowledgement_lines | requested_unit_price | 7e49051787b8b7416836d22bf6afdabc631812526b9de074a7e7c25f7dd54cc9 | 7e49051787b8b7416836d22bf6afdabc631812526b9de074a7e7c25f7dd54cc9 | YES |
+| acknowledgement_lines | response_timestamp | d82c61a3c313734887749b08f589c69d64b0438f41812de3d422ea784c766ad8 | d82c61a3c313734887749b08f589c69d64b0438f41812de3d422ea784c766ad8 | YES |
+| acknowledgement_lines | revision_no | 0f355f108585414bffad2478e6ab43297ab0a44f64cdf44f533548d79d22bb02 | 0f355f108585414bffad2478e6ab43297ab0a44f64cdf44f533548d79d22bb02 | YES |
+| acknowledgement_lines | status | c6e0094aac222277396f180212fef1624a407b6a58a694c2880273593b6d4779 | c6e0094aac222277396f180212fef1624a407b6a58a694c2880273593b6d4779 | YES |
+| acknowledgements | ack_accepted_qty | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | YES |
+| acknowledgements | ack_id | b6b31a386a1ebe47a355dc3b8fde14233bb615e6a1ee7d5078d49c53e471eca5 | b6b31a386a1ebe47a355dc3b8fde14233bb615e6a1ee7d5078d49c53e471eca5 | YES |
+| acknowledgements | ack_rejected_qty | 0bb05645feb531db49209c32453f51334ffaaa5af84fa1b6076b6b3c2ca7e74b | 0bb05645feb531db49209c32453f51334ffaaa5af84fa1b6076b6b3c2ca7e74b | YES |
+| acknowledgements | acknowledged_at | fc8ca2e9d1afbe25adf733a4b674dd0a04e85a5524c5ca601e5bfb5d0c21d12c | fc8ca2e9d1afbe25adf733a4b674dd0a04e85a5524c5ca601e5bfb5d0c21d12c | YES |
+| acknowledgements | acknowledged_value | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | YES |
+| acknowledgements | created_at | d4518e75b75610bcab4df3f1540ae3bbaf9df42aa7195bdbc05908b59a4aff9b | d4518e75b75610bcab4df3f1540ae3bbaf9df42aa7195bdbc05908b59a4aff9b | YES |
+| acknowledgements | created_by_actor_id | 7e8ca5a95654d1b31c56e5850e1744921a25c820201c1be73bb9ecf5a7d0dd0d | 7e8ca5a95654d1b31c56e5850e1744921a25c820201c1be73bb9ecf5a7d0dd0d | YES |
+| acknowledgements | created_by_role | 1e645baa38b1dccae56abee9d8fe6a29f6c818bc5b5307b261416156cbc090eb | 1e645baa38b1dccae56abee9d8fe6a29f6c818bc5b5307b261416156cbc090eb | YES |
+| acknowledgements | date_slip_days | 9b78f553c79723c08bc1f394f8d1ee92ba11ffa198a0e98a55e4b36d5e9ce571 | 9b78f553c79723c08bc1f394f8d1ee92ba11ffa198a0e98a55e4b36d5e9ce571 | YES |
+| acknowledgements | lifecycle_state | 1acf25fd137701985167c0aebf51638c38320241763270dbe90c636590e2a5d8 | 1acf25fd137701985167c0aebf51638c38320241763270dbe90c636590e2a5d8 | YES |
+| acknowledgements | po_id | 42dccf8d7320d08c0496074194089bd595665925cdbe60ff64b64f1430009289 | 42dccf8d7320d08c0496074194089bd595665925cdbe60ff64b64f1430009289 | YES |
+| acknowledgements | po_line_id | 23b819c37e932d2a68f1a7e880f613d01034c0cf724bab11d74e8dcd208914c7 | 23b819c37e932d2a68f1a7e880f613d01034c0cf724bab11d74e8dcd208914c7 | YES |
+| acknowledgements | price_delta_pct | b5686e7af6bfb9a2a8a9d443c22da4b195cfa14657801eb0856f9bd26d09474c | b5686e7af6bfb9a2a8a9d443c22da4b195cfa14657801eb0856f9bd26d09474c | YES |
+| acknowledgements | projected_qty | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | YES |
+| acknowledgements | projected_value | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | YES |
+| acknowledgements | promised_qty | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | 53234052de5272c3cba9b430fc370423999e39cd5cd1428da94a730f801083ac | YES |
+| acknowledgements | promised_value | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | f6762bab7e82018911e4565a0941d49950487bc9b2f9bc03693e505ab8ad752b | YES |
+| acknowledgements | qty_delta_pct | f60fba74211b17b8b7ee6e76eddc8783ac3cd0052b35bd9d8768f5b00870546f | f60fba74211b17b8b7ee6e76eddc8783ac3cd0052b35bd9d8768f5b00870546f | YES |
+| acknowledgements | rejection_reason | 6cce080f4a22816a0172766e30fe30a238f189a82325fe6e33dd4791ff83877d | 6cce080f4a22816a0172766e30fe30a238f189a82325fe6e33dd4791ff83877d | YES |
+| acknowledgements | requested_qty | 4e4102bb107880f78b2d67e20250a0b8e2fbbf3a720ffe97737177c3c387a7d8 | 4e4102bb107880f78b2d67e20250a0b8e2fbbf3a720ffe97737177c3c387a7d8 | YES |
+| acknowledgements | requested_value | d7cd619b555ddbd2c3e657be4c6d2b7c75058a93fce5ececb8d417f0fc84985e | d7cd619b555ddbd2c3e657be4c6d2b7c75058a93fce5ececb8d417f0fc84985e | YES |
+| acknowledgements | response_due_at | 274207d8388ce43c07f641ffdd49a258410989f5ae351305c2511ab68d83d742 | 274207d8388ce43c07f641ffdd49a258410989f5ae351305c2511ab68d83d742 | YES |
+| acknowledgements | revision_no | d75ac076feaa485e2066e82e0f1ebd904239b6bdaee70d11d8e75fd8afd2d27f | d75ac076feaa485e2066e82e0f1ebd904239b6bdaee70d11d8e75fd8afd2d27f | YES |
+| acknowledgements | status | da70599737add15bceebaec744e1ef103123a557676f768b4a3d2128c26d29ce | da70599737add15bceebaec744e1ef103123a557676f768b4a3d2128c26d29ce | YES |
+| acknowledgements | superseded_by | 0febff5f938c995e1211235a744c24980e1c0b004d1376a64715cb7087cd46ce | 0febff5f938c995e1211235a744c24980e1c0b004d1376a64715cb7087cd46ce | YES |
+| acknowledgements | supplier_id | 7e8ca5a95654d1b31c56e5850e1744921a25c820201c1be73bb9ecf5a7d0dd0d | 7e8ca5a95654d1b31c56e5850e1744921a25c820201c1be73bb9ecf5a7d0dd0d | YES |
+| acknowledgements | supplier_note | 18e3c4660e21af16094841ad415e92638270c9df616c11210ae7943943de8a40 | 18e3c4660e21af16094841ad415e92638270c9df616c11210ae7943943de8a40 | YES |
+| actors | actor_id | ae92ff3b34661f1cf2738d446ec87fe9fe6285209fba89148f2f9cf0c5ab159e | ae92ff3b34661f1cf2738d446ec87fe9fe6285209fba89148f2f9cf0c5ab159e | YES |
+| actors | actor_name | ce4e0bd47c4c603e589971afbd66289cb6f4cb1abae4eb975d968d26cdcb701c | ce4e0bd47c4c603e589971afbd66289cb6f4cb1abae4eb975d968d26cdcb701c | YES |
+| actors | actor_role | 54c8f8fddaa124bdf7c4fbd38a4ed1f0a123810f308c2e7c2663c0e1b8af22fa | 54c8f8fddaa124bdf7c4fbd38a4ed1f0a123810f308c2e7c2663c0e1b8af22fa | YES |
+| actors | created_at | 568581e76871ad8f796d72d0461d192fec8c85794acc4880d08f8fba42deb0d1 | 568581e76871ad8f796d72d0461d192fec8c85794acc4880d08f8fba42deb0d1 | YES |
+| actors | email | ad1a89309b75f4c593f326f0f006ff2de8eeb1f716598d1c2cd312f7f4bb2b8a | ad1a89309b75f4c593f326f0f006ff2de8eeb1f716598d1c2cd312f7f4bb2b8a | YES |
+| actors | is_active | 24de2ad7427a4dea6f7e1a394a7051fb2104d6f33430231bad57f1c17e7fc03c | 24de2ad7427a4dea6f7e1a394a7051fb2104d6f33430231bad57f1c17e7fc03c | YES |
+| actors | supplier_id | 3a83a9b959c06e55d96bd46ce41c61ab8699af21f2b76bd425156b6950afae9f | 3a83a9b959c06e55d96bd46ce41c61ab8699af21f2b76bd425156b6950afae9f | YES |
+| approvals | approval_id | 3b83314fad996d982fa32a9dd6b079b525ccaac605b9c2b874e7a9f2a1cdfd1f | 3b83314fad996d982fa32a9dd6b079b525ccaac605b9c2b874e7a9f2a1cdfd1f | YES |
+| approvals | approval_level | def85a83da4a2fcb794877b3bc600700a3d4e30a12f47e9da3b36c2d0f8fcfbc | def85a83da4a2fcb794877b3bc600700a3d4e30a12f47e9da3b36c2d0f8fcfbc | YES |
+| approvals | approval_round | ad81e50bcaecb5cfdfef76851ffcce53e67e15deb3a148cb80baf39d6d9a9574 | ad81e50bcaecb5cfdfef76851ffcce53e67e15deb3a148cb80baf39d6d9a9574 | YES |
+| approvals | approver_actor_id | 8daa95946923cbdeb8d4d16e830b3305d2ae4f4a033c97e878ba07588cf4603a | 8daa95946923cbdeb8d4d16e830b3305d2ae4f4a033c97e878ba07588cf4603a | YES |
+| approvals | approver_role | def85a83da4a2fcb794877b3bc600700a3d4e30a12f47e9da3b36c2d0f8fcfbc | def85a83da4a2fcb794877b3bc600700a3d4e30a12f47e9da3b36c2d0f8fcfbc | YES |
+| approvals | change_request_id | 4602f3eb321930af427ee324f3bc472bcd5090c35475ed06f8fe0ce43024eef1 | 4602f3eb321930af427ee324f3bc472bcd5090c35475ed06f8fe0ce43024eef1 | YES |
+| approvals | comments | 7068d77143c9cb0b715ea0037c7e53776580d3b01f304e88d8c04c2582b0b3a4 | 7068d77143c9cb0b715ea0037c7e53776580d3b01f304e88d8c04c2582b0b3a4 | YES |
+| approvals | created_at | 7e1869cfd902adb2b52d60c16b02958cfcf1a239d771e2d2a0cca387d63a1701 | 7e1869cfd902adb2b52d60c16b02958cfcf1a239d771e2d2a0cca387d63a1701 | YES |
+| approvals | decided_at | 3b5fce7d0f44861dee37da730c61cf30fa92c121889cc9625a27ad23f885c817 | 3b5fce7d0f44861dee37da730c61cf30fa92c121889cc9625a27ad23f885c817 | YES |
+| approvals | decision_reason | 7068d77143c9cb0b715ea0037c7e53776580d3b01f304e88d8c04c2582b0b3a4 | 7068d77143c9cb0b715ea0037c7e53776580d3b01f304e88d8c04c2582b0b3a4 | YES |
+| approvals | due_at | 97c927f7774e60db30df9ac2431385b85a0ba78a1909d427fde68d1ca14a3f6c | 97c927f7774e60db30df9ac2431385b85a0ba78a1909d427fde68d1ca14a3f6c | YES |
+| approvals | requested_at | 7e1869cfd902adb2b52d60c16b02958cfcf1a239d771e2d2a0cca387d63a1701 | 7e1869cfd902adb2b52d60c16b02958cfcf1a239d771e2d2a0cca387d63a1701 | YES |
+| approvals | status | 21eb56ce677a737adede6cc50648834ca05b3b50bf14fe500a26d4e610e3477c | 21eb56ce677a737adede6cc50648834ca05b3b50bf14fe500a26d4e610e3477c | YES |
+| approvals | threshold_name | f2b67e0099c055f543fd1d157c5d7d4c4a1a36e2fe9ca6453e74d620680880b5 | f2b67e0099c055f543fd1d157c5d7d4c4a1a36e2fe9ca6453e74d620680880b5 | YES |
+| approvals | threshold_value | d93181f7bff83d0d267eb0c350bfd5a318fd98233eddfc2f51670bfcf89f3c9b | d93181f7bff83d0d267eb0c350bfd5a318fd98233eddfc2f51670bfcf89f3c9b | YES |
+| carriers | carrier_code | 0ba8c05f0a3b873912c1f083cf8f6c99589a1a9aef2ad87ddacfc4190db326a4 | 0ba8c05f0a3b873912c1f083cf8f6c99589a1a9aef2ad87ddacfc4190db326a4 | YES |
+| carriers | carrier_id | 1ce515cdd05e8247c1f58177b1a246eb3ca8854bf3b33fb07a72b539194675eb | 1ce515cdd05e8247c1f58177b1a246eb3ca8854bf3b33fb07a72b539194675eb | YES |
+| carriers | carrier_name | 13124f956ae39d48e662646a47d798165ab6f922baddc814a11c683cdfe293f3 | 13124f956ae39d48e662646a47d798165ab6f922baddc814a11c683cdfe293f3 | YES |
+| carriers | created_at | 3f3dafe7806711b13994af49b62c82e99cd964f3c7c3cd79dadd8aee205780a3 | 3f3dafe7806711b13994af49b62c82e99cd964f3c7c3cd79dadd8aee205780a3 | YES |
+| carriers | is_active | e6a254f211c323e7033d520bcc7c7e41732245a15a4dfc78b10b363022f7644b | e6a254f211c323e7033d520bcc7c7e41732245a15a4dfc78b10b363022f7644b | YES |
+| change_requests | change_request_id | 2d96d0feee1cd425a50e3248d725572f71acb9c966132795336147f1e686eeb1 | 2d96d0feee1cd425a50e3248d725572f71acb9c966132795336147f1e686eeb1 | YES |
+| change_requests | change_type | dd112847719f9b54b95a1bc0f26b86c34549fab7bd54dd65ce1d110519554855 | dd112847719f9b54b95a1bc0f26b86c34549fab7bd54dd65ce1d110519554855 | YES |
+| change_requests | created_at | f0c2c7f023d9e8f58a74346b5fa719650bfb5b9c1a83d59a292b1793b8234582 | f0c2c7f023d9e8f58a74346b5fa719650bfb5b9c1a83d59a292b1793b8234582 | YES |
+| change_requests | delta | 20fcf716ff6d22640c9bef7a38e13285173fd5883466c243b048c93654fa006f | 20fcf716ff6d22640c9bef7a38e13285173fd5883466c243b048c93654fa006f | YES |
+| change_requests | delta_abs | ff9a0aca9f912e528f3272cd65ed4fb804dc0a7ae0f866bc16b3945f4fd9c092 | ff9a0aca9f912e528f3272cd65ed4fb804dc0a7ae0f866bc16b3945f4fd9c092 | YES |
+| change_requests | delta_pct | 36eeb1aca64bac217d479129570ded54f33e95551b65af7b4594e96258268d2e | 36eeb1aca64bac217d479129570ded54f33e95551b65af7b4594e96258268d2e | YES |
+| change_requests | effective_date | 6f1533603b3bf8178b27bc58bb10a061c76d1e20d811ba43382f4aae6d401e8a | 6f1533603b3bf8178b27bc58bb10a061c76d1e20d811ba43382f4aae6d401e8a | YES |
+| change_requests | new_value | baaa0c99f12985c367a024d9a14c969343b09cffe7ae0b2d1abe7498af110f71 | baaa0c99f12985c367a024d9a14c969343b09cffe7ae0b2d1abe7498af110f71 | YES |
+| change_requests | old_value | 73f2eb7f512688ea09bd049e563f9a377f3eb58cb0a04c873379876948d27e9c | 73f2eb7f512688ea09bd049e563f9a377f3eb58cb0a04c873379876948d27e9c | YES |
+| change_requests | po_id | e020db2caee6a13522973a014867e02ac87203e1d4f01d8584974c8e9bf836e0 | e020db2caee6a13522973a014867e02ac87203e1d4f01d8584974c8e9bf836e0 | YES |
+| change_requests | po_line_id | 88b5997cbd7ef75f7f77c1ba07a614284f0915b70c68340976eab166aba33073 | 88b5997cbd7ef75f7f77c1ba07a614284f0915b70c68340976eab166aba33073 | YES |
+| change_requests | previous_promised_date | 2dfe5d4e06e25397dca8a7ea5461ee4e6ef367aae37643439b278dd286c5481a | 2dfe5d4e06e25397dca8a7ea5461ee4e6ef367aae37643439b278dd286c5481a | YES |
+| change_requests | previous_qty | 1f7a1694d6b4db061a52ccc4994e8a6e02b59c1c029ec09d41e1c15695eda005 | 1f7a1694d6b4db061a52ccc4994e8a6e02b59c1c029ec09d41e1c15695eda005 | YES |
+| change_requests | previous_unit_price | 988c61547c934ed44c1684cab7a77c2c6d817d585beefad621387288f19fcd44 | 988c61547c934ed44c1684cab7a77c2c6d817d585beefad621387288f19fcd44 | YES |
+| change_requests | reason_code | d54b45cc5bb1691e93acb9778a56c5abbe8d5a3d6dd1137ba536093ced63a4e0 | d54b45cc5bb1691e93acb9778a56c5abbe8d5a3d6dd1137ba536093ced63a4e0 | YES |
+| change_requests | reason_text | 872dcf21c14053fba202e003f6144b501d12a40c09bfe234ceb5f52efddac7ab | 872dcf21c14053fba202e003f6144b501d12a40c09bfe234ceb5f52efddac7ab | YES |
+| change_requests | request_type | 3f600b37d913e19945a949769e7a5d607fe586535c35bbd23ea7eea2c04af907 | 3f600b37d913e19945a949769e7a5d607fe586535c35bbd23ea7eea2c04af907 | YES |
+| change_requests | requested_at | f0c2c7f023d9e8f58a74346b5fa719650bfb5b9c1a83d59a292b1793b8234582 | f0c2c7f023d9e8f58a74346b5fa719650bfb5b9c1a83d59a292b1793b8234582 | YES |
+| change_requests | requested_by_actor_id | 8fea6b4ba23dae29f2c1687485f6a1d4ff029ac12640cb7fb0ad1ab360fb3493 | 8fea6b4ba23dae29f2c1687485f6a1d4ff029ac12640cb7fb0ad1ab360fb3493 | YES |
+| change_requests | requested_by_role | e51ae7f29e194eb78e2bd2b412ef4d8dc9df6f995209a80827cefe151706060e | e51ae7f29e194eb78e2bd2b412ef4d8dc9df6f995209a80827cefe151706060e | YES |
+| change_requests | requested_promised_date | bea22d8f94f9986f746e697165390469e33b06a9bab668c801c770987fa803f5 | bea22d8f94f9986f746e697165390469e33b06a9bab668c801c770987fa803f5 | YES |
+| change_requests | requested_qty | 72748a2ba54f5df9002c5b979f706f5e051751e741172972bcadde3f60932c2b | 72748a2ba54f5df9002c5b979f706f5e051751e741172972bcadde3f60932c2b | YES |
+| change_requests | requested_unit_price | 3eb39b5506c1d3f41e9f72477208bbc883dd3c28e41803b9409854f7e11eb7ae | 3eb39b5506c1d3f41e9f72477208bbc883dd3c28e41803b9409854f7e11eb7ae | YES |
+| change_requests | required_approval_level | 779f641606a65339c7cee538030a72830bc3ee153e68d4e7f3f55fddf6fc7626 | 779f641606a65339c7cee538030a72830bc3ee153e68d4e7f3f55fddf6fc7626 | YES |
+| change_requests | response_due_date | 8ef831731453158e0483877277a0046099c97b70bca611192b5c762d4c0871fc | 8ef831731453158e0483877277a0046099c97b70bca611192b5c762d4c0871fc | YES |
+| change_requests | status | 20b7e93300d2dd5be62c766be4c899333a74551c514db10d923fd7a906ee5c75 | 20b7e93300d2dd5be62c766be4c899333a74551c514db10d923fd7a906ee5c75 | YES |
+| change_requests | supplier_id | a01ba1063dd891e9e5f49537104c8e48c21f5a090aa0bc2d6fd681a822b2744e | a01ba1063dd891e9e5f49537104c8e48c21f5a090aa0bc2d6fd681a822b2744e | YES |
+| change_requests | updated_at | 442809723dc33ce1df55923daa596b5c39fc05ca67e7c6cbb05c57e56beabe66 | 442809723dc33ce1df55923daa596b5c39fc05ca67e7c6cbb05c57e56beabe66 | YES |
+| coverage_report | category | 2ca5bf82eee1ede46499511fed9ef0f911f04de32aacbec992ccfa506eedaffc | 2ca5bf82eee1ede46499511fed9ef0f911f04de32aacbec992ccfa506eedaffc | YES |
+| coverage_report | count | 406d7c009afb6fc9069a686d3e171cad5694e685d88a5bc30e4fa2d48f76410c | 406d7c009afb6fc9069a686d3e171cad5694e685d88a5bc30e4fa2d48f76410c | YES |
+| coverage_report | denominator | b5dc1aff861acc63b2e3bd8ccb9dde35ebf88fc02dc2c9dfb8e613d5b2f91f1d | b5dc1aff861acc63b2e3bd8ccb9dde35ebf88fc02dc2c9dfb8e613d5b2f91f1d | YES |
+| coverage_report | percentage | f8017e44e93d80b562d05f0a01027c0d95b8aad29f74df712876412ec7a293ef | f8017e44e93d80b562d05f0a01027c0d95b8aad29f74df712876412ec7a293ef | YES |
+| coverage_report | scale | 76b52cd1dfb6eef3e4ca1043f2fe9e38b16888191052bb4158fe0d293a0045c9 | 76b52cd1dfb6eef3e4ca1043f2fe9e38b16888191052bb4158fe0d293a0045c9 | YES |
+| coverage_report | seed | a4f568bd45c4e09e629331cecdf3043ab8faee6dea0626a8dd11a9a78135ff87 | a4f568bd45c4e09e629331cecdf3043ab8faee6dea0626a8dd11a9a78135ff87 | YES |
+| coverage_report | target_proportion | 82043b60696b92848b41415d07be55a94b5b0876764450cfc4d564ef3a8bfb86 | 82043b60696b92848b41415d07be55a94b5b0876764450cfc4d564ef3a8bfb86 | YES |
+| entity_event | actor_id | a28a1eed4050bff5d2faf0a4b602d319467efaa1ba7cf40cdbfc957a5758df2e | a28a1eed4050bff5d2faf0a4b602d319467efaa1ba7cf40cdbfc957a5758df2e | YES |
+| entity_event | actor_role | ebb236db5cfcfe9004b2e2b1131f6190026fbe87cbe88a05a830eacce138414a | ebb236db5cfcfe9004b2e2b1131f6190026fbe87cbe88a05a830eacce138414a | YES |
+| entity_event | entity_id | 35c7743fb0c16340e86f0b4c655fb4a4cc4511f89215d4076c1bd493a865c228 | 35c7743fb0c16340e86f0b4c655fb4a4cc4511f89215d4076c1bd493a865c228 | YES |
+| entity_event | entity_type | a78bb38f5fbdb62b4908edfc26ff20f6c1a5871c755b6da4745e31da75e570f2 | a78bb38f5fbdb62b4908edfc26ff20f6c1a5871c755b6da4745e31da75e570f2 | YES |
+| entity_event | event_id | 46f202820c12b08349354468f00d0da5c6a3e0d3770a07609fd88e1cb8b0d1f6 | 46f202820c12b08349354468f00d0da5c6a3e0d3770a07609fd88e1cb8b0d1f6 | YES |
+| entity_event | event_timestamp | 1322265c6239eda87d51bcbcbe02834c432667b06bea44d61de01c171b940b35 | 1322265c6239eda87d51bcbcbe02834c432667b06bea44d61de01c171b940b35 | YES |
+| entity_event | event_type | 10f0271207b7da58a3573497fbf63c0c8fd7bde10d120bd38ce7b77769522be6 | 10f0271207b7da58a3573497fbf63c0c8fd7bde10d120bd38ce7b77769522be6 | YES |
+| entity_event | new_state | 920e724de393f4077f55e44498eb32eb58b3e424b65d489ec25fa313b00eb868 | 920e724de393f4077f55e44498eb32eb58b3e424b65d489ec25fa313b00eb868 | YES |
+| entity_event | payload_json | 7376c8670ba5f47b56cb82af312f539fe8a71361db2b67bdc8619fb7f1dc72e8 | 7376c8670ba5f47b56cb82af312f539fe8a71361db2b67bdc8619fb7f1dc72e8 | YES |
+| entity_event | previous_state | c329b4d2dd6f8f71f53968a3100998fd04903d37960e9fd4f979122ae8355f3b | c329b4d2dd6f8f71f53968a3100998fd04903d37960e9fd4f979122ae8355f3b | YES |
+| entity_event | target_ack_id | 5bd9292bf2b45145ce7318c5f8a76c94cce43ae7c26941ec44823c491b646e6c | 5bd9292bf2b45145ce7318c5f8a76c94cce43ae7c26941ec44823c491b646e6c | YES |
+| entity_event | target_approval_id | 3e30164d691eb203a3b0a224e02458d2c1b9284593d14cefeba78cdb04a7b373 | 3e30164d691eb203a3b0a224e02458d2c1b9284593d14cefeba78cdb04a7b373 | YES |
+| entity_event | target_change_request_id | 884af6b91646e5c3155ba210fc74bd35e497a7f75624c6b3a0a73f6b3745f261 | 884af6b91646e5c3155ba210fc74bd35e497a7f75624c6b3a0a73f6b3745f261 | YES |
+| entity_event | target_inventory_plan_id | 67b124324ca97f5c141744b83f2df92367fcb2991ba45803b16be899438406b7 | 67b124324ca97f5c141744b83f2df92367fcb2991ba45803b16be899438406b7 | YES |
+| entity_event | target_notification_id | b45d421a4f98f0bfa0236b564b4f8ea5d79730ec6c25cf7876c7964bee382ad0 | b45d421a4f98f0bfa0236b564b4f8ea5d79730ec6c25cf7876c7964bee382ad0 | YES |
+| entity_event | target_po_id | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | YES |
+| entity_event | target_po_line_id | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | YES |
+| entity_event | target_production_order_id | f5ea1ead989187aa7fba175c626695dbe9c59602b282876b703801d70d963afa | f5ea1ead989187aa7fba175c626695dbe9c59602b282876b703801d70d963afa | YES |
+| entity_event | target_promise_date_id | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | YES |
+| entity_event | target_supplier_id | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | 113dab98a43d387a8cd6cb82674f37cb3828416bb0e9d8a49c37d975a6405260 | YES |
+| ground_truth | boundary | b95881f563e28ca69322b4c530cc0676eff5d423c9de971e42cc606e9eb69db0 | b95881f563e28ca69322b4c530cc0676eff5d423c9de971e42cc606e9eb69db0 | YES |
+| ground_truth | expected_decision | 734df0f0a3a00b9fafe04f1efce361fd93da72b85e286a3f307dc08a92b3a6ce | 734df0f0a3a00b9fafe04f1efce361fd93da72b85e286a3f307dc08a92b3a6ce | YES |
+| ground_truth | expected_severity | 2ce9eb4dddc86bd6260d50f73354baa1a7daf0636a9b9d95266923a60eb587ef | 2ce9eb4dddc86bd6260d50f73354baa1a7daf0636a9b9d95266923a60eb587ef | YES |
+| ground_truth | issue_type | ce6e5e38bc3522d7f676043f081c7fc6f8312806ab70a5fcf2a9a91261ff0d14 | ce6e5e38bc3522d7f676043f081c7fc6f8312806ab70a5fcf2a9a91261ff0d14 | YES |
+| ground_truth | notes | e657879b537b1eeaee218d00471e2d9cf8ce1b5f7d7946f64ca56aa99acb5c85 | e657879b537b1eeaee218d00471e2d9cf8ce1b5f7d7946f64ca56aa99acb5c85 | YES |
+| ground_truth | record_id | a0481ad0c32734a96616d6a7005e625719e6442ed0bf388f193a97d6ea5dfae7 | a0481ad0c32734a96616d6a7005e625719e6442ed0bf388f193a97d6ea5dfae7 | YES |
+| ground_truth | record_type | c33129a3ba0116eae82c1f61506002d0cde5aee1f8958384240de1c03b9671f1 | c33129a3ba0116eae82c1f61506002d0cde5aee1f8958384240de1c03b9671f1 | YES |
+| ground_truth | related_entity_ids | 42e370097f727678ccfeb5e29973dcb1cf9eedb348f5a781ec8e9819f0a471d3 | 42e370097f727678ccfeb5e29973dcb1cf9eedb348f5a781ec8e9819f0a471d3 | YES |
+| inventory_plans | acknowledged_qty | 451b6b87aef60dd58a077a9da2edb7bb35af576fdb124fe4283af7ff6f006b59 | 451b6b87aef60dd58a077a9da2edb7bb35af576fdb124fe4283af7ff6f006b59 | YES |
+| inventory_plans | approved_by_actor_id | 5ca1c45229fc1f5d6b4eab5100be1368e1c8c290061d2b8c0ea55a12f5c98a74 | 5ca1c45229fc1f5d6b4eab5100be1368e1c8c290061d2b8c0ea55a12f5c98a74 | YES |
+| inventory_plans | change_request_id | 748bb20ef8ac874588beaf1e12a9c9ef43b2eb2a0f04d060061b9ee21784f9da | 748bb20ef8ac874588beaf1e12a9c9ef43b2eb2a0f04d060061b9ee21784f9da | YES |
+| inventory_plans | created_at | af430af3d17892fa4220b2d7155922548b3c9a6303c8b1bd52a451ab3207bac5 | af430af3d17892fa4220b2d7155922548b3c9a6303c8b1bd52a451ab3207bac5 | YES |
+| inventory_plans | demand_qty | ca9695d93406c2a9da3dafd8abb0ec19051ed5144a3afc19dcad054a3f592777 | ca9695d93406c2a9da3dafd8abb0ec19051ed5144a3afc19dcad054a3f592777 | YES |
+| inventory_plans | effective_date | 1c8e1f8ec2efd67ac67405a3ba6ca2822500e020c80fe5de325ea912086fe2db | 1c8e1f8ec2efd67ac67405a3ba6ca2822500e020c80fe5de325ea912086fe2db | YES |
+| inventory_plans | inventory_plan_id | f379c419a85478f9714fed8b8a135e0a20bb2df2aedbbf167d5a01e3dbf1492a | f379c419a85478f9714fed8b8a135e0a20bb2df2aedbbf167d5a01e3dbf1492a | YES |
+| inventory_plans | is_effective | 1e6b7a445095e3d547b2cba4d935a999d98f25b684bc5436cb2dc29274e9bbf3 | 1e6b7a445095e3d547b2cba4d935a999d98f25b684bc5436cb2dc29274e9bbf3 | YES |
+| inventory_plans | on_hand_qty | 1925747233273af1308a894fbc37bb7e29149853ffe5687bd7c3cf3171b9e6d9 | 1925747233273af1308a894fbc37bb7e29149853ffe5687bd7c3cf3171b9e6d9 | YES |
+| inventory_plans | plan_end_date | 938543da6be17538ee9f64bb5004c7907c6620ae7a0a235642c38200285db846 | 938543da6be17538ee9f64bb5004c7907c6620ae7a0a235642c38200285db846 | YES |
+| inventory_plans | plan_revision_no | ed5a10b2aafd588bbf810f463a46086235837ba7ed8f5b81766e4f91f8d31cc2 | ed5a10b2aafd588bbf810f463a46086235837ba7ed8f5b81766e4f91f8d31cc2 | YES |
+| inventory_plans | plan_start_date | e5d282878108d3f8c95df7c1e9fe534d5257e5867bcc498f4aae70cb37062304 | e5d282878108d3f8c95df7c1e9fe534d5257e5867bcc498f4aae70cb37062304 | YES |
+| inventory_plans | plan_version | ed5a10b2aafd588bbf810f463a46086235837ba7ed8f5b81766e4f91f8d31cc2 | ed5a10b2aafd588bbf810f463a46086235837ba7ed8f5b81766e4f91f8d31cc2 | YES |
+| inventory_plans | planned_receipt_qty | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | YES |
+| inventory_plans | planner_actor_id | f109f0b709f09f5abbc3d03d2c6863e52d86a2f29af1733606efe8eb5d75ea0c | f109f0b709f09f5abbc3d03d2c6863e52d86a2f29af1733606efe8eb5d75ea0c | YES |
+| inventory_plans | po_id | b7fc349bbb135f5cb9a2844a8193285b0787e26099eb2865491d215c35626ba8 | b7fc349bbb135f5cb9a2844a8193285b0787e26099eb2865491d215c35626ba8 | YES |
+| inventory_plans | po_line_id | 49d20351d3836deec4dd8771f9ae0b9ce9d8d9f63a7413f274d43571e9b58e26 | 49d20351d3836deec4dd8771f9ae0b9ce9d8d9f63a7413f274d43571e9b58e26 | YES |
+| inventory_plans | previous_version_id | 41a0020d893931bd4e0dd93c24945219cb5c4df5c50c8d7f2c78d82eb7dddc7f | 41a0020d893931bd4e0dd93c24945219cb5c4df5c50c8d7f2c78d82eb7dddc7f | YES |
+| inventory_plans | projected_available_qty | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | YES |
+| inventory_plans | projected_delivery_date | 938543da6be17538ee9f64bb5004c7907c6620ae7a0a235642c38200285db846 | 938543da6be17538ee9f64bb5004c7907c6620ae7a0a235642c38200285db846 | YES |
+| inventory_plans | projected_qty | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | d2d60f551d69ffe807a8e40c706bd42d28347858bf68393c375c84a699160876 | YES |
+| inventory_plans | projected_shortage_qty | b90979b7f747430306f96685ee3706d2825eb1d7c36ffc498dc810560724bd6e | b90979b7f747430306f96685ee3706d2825eb1d7c36ffc498dc810560724bd6e | YES |
+| inventory_plans | promised_date | acba0ccc7c3fb27906696d6f75ec5ce23d1afa74446670ae7b63a9b1438e57ce | acba0ccc7c3fb27906696d6f75ec5ce23d1afa74446670ae7b63a9b1438e57ce | YES |
+| inventory_plans | promised_qty | 451b6b87aef60dd58a077a9da2edb7bb35af576fdb124fe4283af7ff6f006b59 | 451b6b87aef60dd58a077a9da2edb7bb35af576fdb124fe4283af7ff6f006b59 | YES |
+| inventory_plans | requested_qty | ca9695d93406c2a9da3dafd8abb0ec19051ed5144a3afc19dcad054a3f592777 | ca9695d93406c2a9da3dafd8abb0ec19051ed5144a3afc19dcad054a3f592777 | YES |
+| inventory_plans | required_date | 08634a2010a6371fb907a70755a4bf0e5b85a9b263dcc759d0530305c3fe172a | 08634a2010a6371fb907a70755a4bf0e5b85a9b263dcc759d0530305c3fe172a | YES |
+| inventory_plans | reserved_qty | 1925747233273af1308a894fbc37bb7e29149853ffe5687bd7c3cf3171b9e6d9 | 1925747233273af1308a894fbc37bb7e29149853ffe5687bd7c3cf3171b9e6d9 | YES |
+| inventory_plans | source | 5a5633cf8809a72705358ee2d33eb6f2752de986c49178ece92280d2b1d535f5 | 5a5633cf8809a72705358ee2d33eb6f2752de986c49178ece92280d2b1d535f5 | YES |
+| inventory_plans | status | e148e8824c6619ef9935fb62ef17d0e44eee6f12bcde14e8f281cb895608a6c3 | e148e8824c6619ef9935fb62ef17d0e44eee6f12bcde14e8f281cb895608a6c3 | YES |
+| inventory_plans | superseded_by | c74101dcb05ef275ab619c7156841caa0071442507265a34bc2890032b6af64f | c74101dcb05ef275ab619c7156841caa0071442507265a34bc2890032b6af64f | YES |
+| inventory_plans | updated_at | af430af3d17892fa4220b2d7155922548b3c9a6303c8b1bd52a451ab3207bac5 | af430af3d17892fa4220b2d7155922548b3c9a6303c8b1bd52a451ab3207bac5 | YES |
+| items | created_at | b4bed39cc84a5c8ce993de124f7a9ff78fbe18f44fdece50ee22b4686ee699bb | b4bed39cc84a5c8ce993de124f7a9ff78fbe18f44fdece50ee22b4686ee699bb | YES |
+| items | default_uom | 0eed40ed5db5110de834b0465aeef9e9621952d9bc4fa9d37ac4234e62e6fc2c | 0eed40ed5db5110de834b0465aeef9e9621952d9bc4fa9d37ac4234e62e6fc2c | YES |
+| items | item_id | 120da537d387bb3098f90a44dd25efc073c20b30e9ee14e867d31e7e8545ab96 | 120da537d387bb3098f90a44dd25efc073c20b30e9ee14e867d31e7e8545ab96 | YES |
+| items | item_name | d8a0792a0ae98460053c578c3b6b54f7e84dfa9865856f2864ec84a93dbf3f64 | d8a0792a0ae98460053c578c3b6b54f7e84dfa9865856f2864ec84a93dbf3f64 | YES |
+| items | item_status | dd795dd2224e03990d5ef64f9f40ce27c9086fe8cceda73ccd3a37b14a219b32 | dd795dd2224e03990d5ef64f9f40ce27c9086fe8cceda73ccd3a37b14a219b32 | YES |
+| items | price_currency | 86abd493401783f64f079c54b067e44d740b610bcfea0bc347175c208b418c5b | 86abd493401783f64f079c54b067e44d740b610bcfea0bc347175c208b418c5b | YES |
+| items | unit_price_max | b0fefe32fefac24e42fd76da58d0a61d13e6121a7b1b0052b47a11189fcaffbb | b0fefe32fefac24e42fd76da58d0a61d13e6121a7b1b0052b47a11189fcaffbb | YES |
+| items | unit_price_min | 0c4d489efbc2c9cec89a96b1a85b63ba3055f51f99f2b6951e4655a077417f17 | 0c4d489efbc2c9cec89a96b1a85b63ba3055f51f99f2b6951e4655a077417f17 | YES |
+| notification_recipient | actor_role | 5fcd3e835e6e55af7cf0fc7f40514093c82da46f9b7c24e01f0e55ffdd3f5152 | 5fcd3e835e6e55af7cf0fc7f40514093c82da46f9b7c24e01f0e55ffdd3f5152 | YES |
+| notification_recipient | notification_id | 6108822e37633f6f4d646f6464eaeb653a6825557a0d8542cc63873b922af436 | 6108822e37633f6f4d646f6464eaeb653a6825557a0d8542cc63873b922af436 | YES |
+| notification_recipient | recipient_actor_id | 0c1204be3ed3898ca41fb5edf3e2c0e2f7e545f6e54279ba13399b9535925cd6 | 0c1204be3ed3898ca41fb5edf3e2c0e2f7e545f6e54279ba13399b9535925cd6 | YES |
+| notifications | ack_id | cb30a29bdc1c03a77ea35228401524b9ab731f4ecfd4318e858255bc1211ed62 | cb30a29bdc1c03a77ea35228401524b9ab731f4ecfd4318e858255bc1211ed62 | YES |
+| notifications | body | 8ee3a150f0ed8afd11f9a7593e73a1724ef42da5eab6db700989051bf35999f7 | 8ee3a150f0ed8afd11f9a7593e73a1724ef42da5eab6db700989051bf35999f7 | YES |
+| notifications | change_request_id | f5328fe9a5ca588724a2b6fcfcd40fb71277136a5d67b67bc41f2575b5c0b265 | f5328fe9a5ca588724a2b6fcfcd40fb71277136a5d67b67bc41f2575b5c0b265 | YES |
+| notifications | channel | 6c9012982ffae6b926e41ca8c05f558c7b66777e36e0be1a81ec59ba764fe9a7 | 6c9012982ffae6b926e41ca8c05f558c7b66777e36e0be1a81ec59ba764fe9a7 | YES |
+| notifications | created_at | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | YES |
+| notifications | delivered_at | 333688de13a9fb06ccc07b7670e48907e3d566f8fc60813fd6043b731ae10661 | 333688de13a9fb06ccc07b7670e48907e3d566f8fc60813fd6043b731ae10661 | YES |
+| notifications | last_error | 333688de13a9fb06ccc07b7670e48907e3d566f8fc60813fd6043b731ae10661 | 333688de13a9fb06ccc07b7670e48907e3d566f8fc60813fd6043b731ae10661 | YES |
+| notifications | not_id | 0ceea29c56138502e74faed62fe6bc198bb5f9eea9ab66d70debd17ae8626c07 | 0ceea29c56138502e74faed62fe6bc198bb5f9eea9ab66d70debd17ae8626c07 | YES |
+| notifications | not_type | 8d349eb7b3817a265cde663619bd25979a77b6aa3ed094c9c38fc9afdb84c851 | 8d349eb7b3817a265cde663619bd25979a77b6aa3ed094c9c38fc9afdb84c851 | YES |
+| notifications | notification_id | 0ceea29c56138502e74faed62fe6bc198bb5f9eea9ab66d70debd17ae8626c07 | 0ceea29c56138502e74faed62fe6bc198bb5f9eea9ab66d70debd17ae8626c07 | YES |
+| notifications | open_impact_count | 298c45a7e9a4d1b3117edc647b90fc73423bf9d20972c52606b3a9670c3e5bc2 | 298c45a7e9a4d1b3117edc647b90fc73423bf9d20972c52606b3a9670c3e5bc2 | YES |
+| notifications | po_id | a6cf368470a82f7d0733d9d49041ee441ce6775b1b400258435720c43edbfbdd | a6cf368470a82f7d0733d9d49041ee441ce6775b1b400258435720c43edbfbdd | YES |
+| notifications | read_status | 1a9c55ef44417881b37a4a7f5410bbb373693151840686f551597e80f323f212 | 1a9c55ef44417881b37a4a7f5410bbb373693151840686f551597e80f323f212 | YES |
+| notifications | related_entity_id | bb43cef2872fb8f2665296e0ee310a734d043f3aa7880145b4a06f7703242c3c | bb43cef2872fb8f2665296e0ee310a734d043f3aa7880145b4a06f7703242c3c | YES |
+| notifications | related_entity_type | a0297c870551f269937e34dfb6d9c11aa30a3fe840be9d1b2c9216b38ef11d27 | a0297c870551f269937e34dfb6d9c11aa30a3fe840be9d1b2c9216b38ef11d27 | YES |
+| notifications | retry_count | 5f977674c8804b0ee7d1597f716a90e301bfe4031898d4b66a37a6fce505f2a3 | 5f977674c8804b0ee7d1597f716a90e301bfe4031898d4b66a37a6fce505f2a3 | YES |
+| notifications | scheduled_at | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | YES |
+| notifications | sent_at | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | 69ad434fa8694dc5324866021c427fd6c991e843208469a071f8303936a4681e | YES |
+| notifications | severity | 79488bd282f274b4cdd3019c7ffb1d6ba8a5173ab7d49511754e01f717824d37 | 79488bd282f274b4cdd3019c7ffb1d6ba8a5173ab7d49511754e01f717824d37 | YES |
+| notifications | source_event_id | 55f52cecc4d2d427fd1d8889cdb50fd016620935baf32733906d2419708c56c3 | 55f52cecc4d2d427fd1d8889cdb50fd016620935baf32733906d2419708c56c3 | YES |
+| notifications | status | 3d86e9a45bf58a25f5a03252c10c6337ab903f47dcca179d98ee0ff572d023da | 3d86e9a45bf58a25f5a03252c10c6337ab903f47dcca179d98ee0ff572d023da | YES |
+| notifications | subject | de6cbb72b8b1b2fc02b2114623b39c8b12ed8d0e8b36d1f2e18c07f52bbc671c | de6cbb72b8b1b2fc02b2114623b39c8b12ed8d0e8b36d1f2e18c07f52bbc671c | YES |
+| notifications | title | de6cbb72b8b1b2fc02b2114623b39c8b12ed8d0e8b36d1f2e18c07f52bbc671c | de6cbb72b8b1b2fc02b2114623b39c8b12ed8d0e8b36d1f2e18c07f52bbc671c | YES |
+| po_lines | ack_accepted_qty | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | YES |
+| po_lines | ack_rejected_qty | d147d72a3053c444f8b2814df97db801eca52da6892db3fe2f24a4cfbf347fd1 | d147d72a3053c444f8b2814df97db801eca52da6892db3fe2f24a4cfbf347fd1 | YES |
+| po_lines | acknowledged_unit_price | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | YES |
+| po_lines | acknowledged_value | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | YES |
+| po_lines | created_at | fd1783f9aea8c55953267872d1c3de31a8c791dfd18a87987e01384f5a4fca4c | fd1783f9aea8c55953267872d1c3de31a8c791dfd18a87987e01384f5a4fca4c | YES |
+| po_lines | currency | 4855b768509903d15ec99ffdea0592d9f1ed18f179bafc52d9a44b04bb65d546 | 4855b768509903d15ec99ffdea0592d9f1ed18f179bafc52d9a44b04bb65d546 | YES |
+| po_lines | item_description | c9fa8db70a99f11b603f4df248eb72a4fea2ff21530044d4f9bd42c77aac8d96 | c9fa8db70a99f11b603f4df248eb72a4fea2ff21530044d4f9bd42c77aac8d96 | YES |
+| po_lines | item_id | c7c283cff36205455325c2a3d3d7b12e5cc24bfb5ae11f13da22059a57e70f5f | c7c283cff36205455325c2a3d3d7b12e5cc24bfb5ae11f13da22059a57e70f5f | YES |
+| po_lines | line_no | 7bacd37fe47ef94e0ef0772225d9c86e98d29e6ddc07d4a179bd4d8ea387469d | 7bacd37fe47ef94e0ef0772225d9c86e98d29e6ddc07d4a179bd4d8ea387469d | YES |
+| po_lines | line_total | 86ac671a51c39ffd7b1d547adb4b3d02653b256546a60e59199fbd81a91aef61 | 86ac671a51c39ffd7b1d547adb4b3d02653b256546a60e59199fbd81a91aef61 | YES |
+| po_lines | po_id | 012a6cd83fae4f5d6b139754d88e15c6da2373dab3986fb84ca92a0fbbe1b011 | 012a6cd83fae4f5d6b139754d88e15c6da2373dab3986fb84ca92a0fbbe1b011 | YES |
+| po_lines | po_line_id | b51af8911ee77a99939ca7618b9c568bf47cd0eabc5f1e5d4ddcb504ada2c8cd | b51af8911ee77a99939ca7618b9c568bf47cd0eabc5f1e5d4ddcb504ada2c8cd | YES |
+| po_lines | projected_qty | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | YES |
+| po_lines | projected_unit_price | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | YES |
+| po_lines | projected_value | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | YES |
+| po_lines | promised_qty | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | 41eef4e4222e12a3ff2066916958fec17b80739f9492817432b9dafd011c33a1 | YES |
+| po_lines | promised_unit_price | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | 5bff0c37ea63004698abb0f21167801bf21ed16d03046f3dbcd9ba638bff34f0 | YES |
+| po_lines | promised_value | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | 8bce4ffef4c20380153a6f2d2c38e65bbe0745b87d60d4b8dde91eb004bc9822 | YES |
+| po_lines | requested_qty | 98513ff24dfc41b5d5810e80a926f15eb688dae8798525623457ab782f4ef971 | 98513ff24dfc41b5d5810e80a926f15eb688dae8798525623457ab782f4ef971 | YES |
+| po_lines | required_date | 1662831ee8df21d742cdc4e1d120dd450db3e38165327bd1d1fe10eb75b8e24a | 1662831ee8df21d742cdc4e1d120dd450db3e38165327bd1d1fe10eb75b8e24a | YES |
+| po_lines | status | a9242e9068dadf761548e34b1f7df3055770cc88c32407e5c1316a2d8b43a124 | a9242e9068dadf761548e34b1f7df3055770cc88c32407e5c1316a2d8b43a124 | YES |
+| po_lines | unit_price | 4a79fe587eee81bce4a0a4d67683ec592569be8b60d1ebd79bb36c4d553fbc00 | 4a79fe587eee81bce4a0a4d67683ec592569be8b60d1ebd79bb36c4d553fbc00 | YES |
+| po_lines | uom | 7825b1529be071da35c37c4305b6f7dbd8dd9aeac67533cec220039192450b5b | 7825b1529be071da35c37c4305b6f7dbd8dd9aeac67533cec220039192450b5b | YES |
+| po_lines | updated_at | dd12102942624741b6e79f6c6f80b30a71ab8980120fc5265b6f3049aa188141 | dd12102942624741b6e79f6c6f80b30a71ab8980120fc5265b6f3049aa188141 | YES |
+| production_order_impact | change_request_id | b84af8ecaa47e2953d55a0dc213ca6851e17f26bdeac779466c8a94740146a20 | b84af8ecaa47e2953d55a0dc213ca6851e17f26bdeac779466c8a94740146a20 | YES |
+| production_order_impact | created_at | 7ee47e1b6935f6ac08b91dc1db59dd3232d069f38291eb083b390a5eee65fffb | 7ee47e1b6935f6ac08b91dc1db59dd3232d069f38291eb083b390a5eee65fffb | YES |
+| production_order_impact | impact_id | 1db3659de5b0d2688b4bdceff5371ac90b01a86b0c1de4f680c4f5ff4ebd0634 | 1db3659de5b0d2688b4bdceff5371ac90b01a86b0c1de4f680c4f5ff4ebd0634 | YES |
+| production_order_impact | impact_type | c210a85ff5eb86e3e96fe4e8b2a7b0dc06c3858db74d8302d709f6a242fb2c56 | c210a85ff5eb86e3e96fe4e8b2a7b0dc06c3858db74d8302d709f6a242fb2c56 | YES |
+| production_order_impact | new_projected_delivery_date | dd2f450122c2130948c0a3732b8be2cb0cd4f31af7da95e35107e4ca505b27b5 | dd2f450122c2130948c0a3732b8be2cb0cd4f31af7da95e35107e4ca505b27b5 | YES |
+| production_order_impact | new_projected_qty | 394f6da1fde15ba5fcdbea870c67dc118cfd372a54fd5dfc6c5af49900f3bede | 394f6da1fde15ba5fcdbea870c67dc118cfd372a54fd5dfc6c5af49900f3bede | YES |
+| production_order_impact | old_projected_delivery_date | ada8c9bc962afc833d8d53b77c4c687f8917eb3d24647e12411ab44c4e4d8607 | ada8c9bc962afc833d8d53b77c4c687f8917eb3d24647e12411ab44c4e4d8607 | YES |
+| production_order_impact | old_projected_qty | 6deca276d02275b12a8a759b6015f89b1229fef3441f71796c4babe83de57139 | 6deca276d02275b12a8a759b6015f89b1229fef3441f71796c4babe83de57139 | YES |
+| production_order_impact | po_line_id | 1b37071502b9f354a4fd7b0133dea627aac4c5d78629fa0b798dbd8853adb767 | 1b37071502b9f354a4fd7b0133dea627aac4c5d78629fa0b798dbd8853adb767 | YES |
+| production_order_impact | production_order_id | d99cdc3628137ec9093cb197f721e664b3ba979f692be232ecc3428afcc0df5c | d99cdc3628137ec9093cb197f721e664b3ba979f692be232ecc3428afcc0df5c | YES |
+| production_order_impact | rescheduled_planned_start_date | 02db5489e12a4d6b6cee3646670bcc89741e18008c09b0d15a25b745859f0c4a | 02db5489e12a4d6b6cee3646670bcc89741e18008c09b0d15a25b745859f0c4a | YES |
+| production_order_impact | severity | cf929062f1ada8a710f6e0e98d5ae79dd0470003bfea97c11a2739fb4d5c3800 | cf929062f1ada8a710f6e0e98d5ae79dd0470003bfea97c11a2739fb4d5c3800 | YES |
+| production_order_impact | shortfall_pct | 64650dd061a1e561bdc51c0853418536b2611c717c64c74943d003c51a5fc255 | 64650dd061a1e561bdc51c0853418536b2611c717c64c74943d003c51a5fc255 | YES |
+| production_order_impact | slip_days | 42f7a32f94abcc38e4f972986d508cfae0769c3bc8cd16b3889fca1ea0896682 | 42f7a32f94abcc38e4f972986d508cfae0769c3bc8cd16b3889fca1ea0896682 | YES |
+| production_order_line | allocated_quantity | c311730c9aa3a98feca49889af17b643c4b677fea0b00a23f11d0e3f2baf838f | c311730c9aa3a98feca49889af17b643c4b677fea0b00a23f11d0e3f2baf838f | YES |
+| production_order_line | allocated_uom | 164f0eaefb8b22557ef459d0e94ea38458431a67a039666a052e1dc2cd959173 | 164f0eaefb8b22557ef459d0e94ea38458431a67a039666a052e1dc2cd959173 | YES |
+| production_order_line | created_at | 940d82a287b26c669458833c9a9d770a9fb90c31aa23d0d452e95e58148c0e2b | 940d82a287b26c669458833c9a9d770a9fb90c31aa23d0d452e95e58148c0e2b | YES |
+| production_order_line | po_line_id | 60d8b121e41fd96c212742d04bbe2d1881f8dc11e45d2915ddfc5c9df1c28646 | 60d8b121e41fd96c212742d04bbe2d1881f8dc11e45d2915ddfc5c9df1c28646 | YES |
+| production_order_line | production_order_id | 4b882c7294eeedd94c9b770651ddeb702c2272ef60324cf36e968709718db5a0 | 4b882c7294eeedd94c9b770651ddeb702c2272ef60324cf36e968709718db5a0 | YES |
+| production_orders | actual_end_date | 85adeccd20f95647678682c1f90380d89cd58f1e6d4684994e3bbc228f922943 | 85adeccd20f95647678682c1f90380d89cd58f1e6d4684994e3bbc228f922943 | YES |
+| production_orders | actual_start_date | 85adeccd20f95647678682c1f90380d89cd58f1e6d4684994e3bbc228f922943 | 85adeccd20f95647678682c1f90380d89cd58f1e6d4684994e3bbc228f922943 | YES |
+| production_orders | affected_material_qty | c311730c9aa3a98feca49889af17b643c4b677fea0b00a23f11d0e3f2baf838f | c311730c9aa3a98feca49889af17b643c4b677fea0b00a23f11d0e3f2baf838f | YES |
+| production_orders | at_risk | 59f64a4da1af1bd469d1cfd040aa509cef293266e6413b414124c0d603aedbb6 | 59f64a4da1af1bd469d1cfd040aa509cef293266e6413b414124c0d603aedbb6 | YES |
+| production_orders | completed_qty | 3a09019a95e1fd6cf323e69dcae68bf38a4b69bc76f7cd8a326d04dc3b19389b | 3a09019a95e1fd6cf323e69dcae68bf38a4b69bc76f7cd8a326d04dc3b19389b | YES |
+| production_orders | created_at | 940d82a287b26c669458833c9a9d770a9fb90c31aa23d0d452e95e58148c0e2b | 940d82a287b26c669458833c9a9d770a9fb90c31aa23d0d452e95e58148c0e2b | YES |
+| production_orders | current_start_date | e0bf8cac19457a6a8b65d79b27e0bf93706ff8e85e839794cef6bff8d4d93c96 | e0bf8cac19457a6a8b65d79b27e0bf93706ff8e85e839794cef6bff8d4d93c96 | YES |
+| production_orders | delay_days | 8c3345f079734ce07687bc71224f4aa71b168bd2b9e42f2426b3c9eef6732cd6 | 8c3345f079734ce07687bc71224f4aa71b168bd2b9e42f2426b3c9eef6732cd6 | YES |
+| production_orders | inventory_plan_id | b6a2c2454871670d16e4a9376c55b960d8b0b5b5e1c1b784e9218e5520f3027e | b6a2c2454871670d16e4a9376c55b960d8b0b5b5e1c1b784e9218e5520f3027e | YES |
+| production_orders | original_start_date | 3ebd58e4758b8f696efef3d061e298c62b17db091b8b4879fa61922a537a0285 | 3ebd58e4758b8f696efef3d061e298c62b17db091b8b4879fa61922a537a0285 | YES |
+| production_orders | owner_actor_id | ed65a26b38474e9256638cfd619b8aee4590b3bdee81beef5b88c2c0c680fb38 | ed65a26b38474e9256638cfd619b8aee4590b3bdee81beef5b88c2c0c680fb38 | YES |
+| production_orders | owner_role | 87e9b21fc525fb155eada43dc03daee647a41dc17b0762ae081011de88dc37ca | 87e9b21fc525fb155eada43dc03daee647a41dc17b0762ae081011de88dc37ca | YES |
+| production_orders | planned_qty | 932c22844a0d7d50f142021e900b1be2a255f5446698c5ef26d98158041095aa | 932c22844a0d7d50f142021e900b1be2a255f5446698c5ef26d98158041095aa | YES |
+| production_orders | planned_start_date | e0bf8cac19457a6a8b65d79b27e0bf93706ff8e85e839794cef6bff8d4d93c96 | e0bf8cac19457a6a8b65d79b27e0bf93706ff8e85e839794cef6bff8d4d93c96 | YES |
+| production_orders | po_id | 245a7af2cdb8645c0d76f123fb761dca08d21ea1ca989af57b151a02066de55b | 245a7af2cdb8645c0d76f123fb761dca08d21ea1ca989af57b151a02066de55b | YES |
+| production_orders | po_line_id | 60d8b121e41fd96c212742d04bbe2d1881f8dc11e45d2915ddfc5c9df1c28646 | 60d8b121e41fd96c212742d04bbe2d1881f8dc11e45d2915ddfc5c9df1c28646 | YES |
+| production_orders | priority | e122deb81b6a9334f726f6002c6a703f36151bd7e34f191d23a14d9df36053a8 | e122deb81b6a9334f726f6002c6a703f36151bd7e34f191d23a14d9df36053a8 | YES |
+| production_orders | production_order_id | 4b882c7294eeedd94c9b770651ddeb702c2272ef60324cf36e968709718db5a0 | 4b882c7294eeedd94c9b770651ddeb702c2272ef60324cf36e968709718db5a0 | YES |
+| production_orders | released_qty | 3a09019a95e1fd6cf323e69dcae68bf38a4b69bc76f7cd8a326d04dc3b19389b | 3a09019a95e1fd6cf323e69dcae68bf38a4b69bc76f7cd8a326d04dc3b19389b | YES |
+| production_orders | required_by_date | 7c04167fd060df21244f14f07271c8f3944bb5fe20a646314ecd6a8b3b8efdbc | 7c04167fd060df21244f14f07271c8f3944bb5fe20a646314ecd6a8b3b8efdbc | YES |
+| production_orders | schedule_shift_days | e8cf8c00f59dd42ef889d056f60658dfb2c6580fa117410f1b78630019f9c76e | e8cf8c00f59dd42ef889d056f60658dfb2c6580fa117410f1b78630019f9c76e | YES |
+| production_orders | scheduled_end_date | 7c79c39cb80af12ffa4ae231461f1a0e0c723ccb481ceab2c81648c75133767e | 7c79c39cb80af12ffa4ae231461f1a0e0c723ccb481ceab2c81648c75133767e | YES |
+| production_orders | shortfall_qty | 7bc528ed689d162e62600ddce7747b3753fae90e25683eda1c67f5d8f5eec379 | 7bc528ed689d162e62600ddce7747b3753fae90e25683eda1c67f5d8f5eec379 | YES |
+| production_orders | status | 87b8b9e43591bcc193c964e3220c605ee60b551432e48f474415a785b6d71d9d | 87b8b9e43591bcc193c964e3220c605ee60b551432e48f474415a785b6d71d9d | YES |
+| production_orders | updated_at | 9da5d59116a793efceed6c8a1306ac7b1440237da3941b35e9e11f9fc0dd432b | 9da5d59116a793efceed6c8a1306ac7b1440237da3941b35e9e11f9fc0dd432b | YES |
+| promise_dates | ack_id | 27c7bfcd9347b0edd82431004fd6278f51ea58e30b898b79feb85d2df2663de4 | 27c7bfcd9347b0edd82431004fd6278f51ea58e30b898b79feb85d2df2663de4 | YES |
+| promise_dates | carrier_id | 13f4e66f4298db5d2090d0b59169e5d761fceb33d5f934f236e72fe4086518d0 | 13f4e66f4298db5d2090d0b59169e5d761fceb33d5f934f236e72fe4086518d0 | YES |
+| promise_dates | carrier_operator_actor_id | 8bb98eadc072cc3000a660c2d04bef25e34ad3d8f2b3d3c6b946505d33e093ce | 8bb98eadc072cc3000a660c2d04bef25e34ad3d8f2b3d3c6b946505d33e093ce | YES |
+| promise_dates | carrier_reference | 18ef36bdb68c43997adfa30b445413bfeb75563c53f45b5e707298a9d405d5ab | 18ef36bdb68c43997adfa30b445413bfeb75563c53f45b5e707298a9d405d5ab | YES |
+| promise_dates | created_at | fa2b7ba0b1e7319d56762e2124c6e96bb079af5d19e0649c76dd8aa814d7cccb | fa2b7ba0b1e7319d56762e2124c6e96bb079af5d19e0649c76dd8aa814d7cccb | YES |
+| promise_dates | created_by_actor_id | fdab599cfc66999f415fc369ef9873c2aed1d95f8a0b5ba6bf950fc1d013105c | fdab599cfc66999f415fc369ef9873c2aed1d95f8a0b5ba6bf950fc1d013105c | YES |
+| promise_dates | created_by_role | bf8ff2ce40f8914d4d6b2a3a3dac31ddb2e89dc22fcef1feb9686148b0a616b2 | bf8ff2ce40f8914d4d6b2a3a3dac31ddb2e89dc22fcef1feb9686148b0a616b2 | YES |
+| promise_dates | effective_date | 8e89541a6d05d789b052fdc367e5a8a9e089596b06526353e7c7f95b61c5adf7 | 8e89541a6d05d789b052fdc367e5a8a9e089596b06526353e7c7f95b61c5adf7 | YES |
+| promise_dates | is_late | 2c271461ba3bd1994385385ccd535a4b4d5cd4a403875323036284cfc6075c69 | 2c271461ba3bd1994385385ccd535a4b4d5cd4a403875323036284cfc6075c69 | YES |
+| promise_dates | po_id | 8c84007ea2514f6959c96301184cc721bf836325fa3fa013d190c73be38603cb | 8c84007ea2514f6959c96301184cc721bf836325fa3fa013d190c73be38603cb | YES |
+| promise_dates | po_line_id | cce4edf9ea12f6af7350c98b654a66ef427f8540107002ef2731c867312c7349 | cce4edf9ea12f6af7350c98b654a66ef427f8540107002ef2731c867312c7349 | YES |
+| promise_dates | prior_promised_date | 080b5a14cab9a18a9c39304c945f6bda61d6d40e95a6801b1224c78f2e3ef61a | 080b5a14cab9a18a9c39304c945f6bda61d6d40e95a6801b1224c78f2e3ef61a | YES |
+| promise_dates | promise_confidence | cf9002554ea9fd747a0eda4855773b5be409fb4dfcfd652706c75a36149b403d | cf9002554ea9fd747a0eda4855773b5be409fb4dfcfd652706c75a36149b403d | YES |
+| promise_dates | promise_date_id | 012293c126c2a42b2ad7d69b79f0a6948b509071b52e4a2328aef60d0fb6b889 | 012293c126c2a42b2ad7d69b79f0a6948b509071b52e4a2328aef60d0fb6b889 | YES |
+| promise_dates | promised_date | 06e28351c24eb60b1b98772aeb7aabcbf5e5411b09aaeb52b0e4c2b5bc972332 | 06e28351c24eb60b1b98772aeb7aabcbf5e5411b09aaeb52b0e4c2b5bc972332 | YES |
+| promise_dates | promised_qty | 37db22188dad104cce0fe66f5f5850070cbe5e98157bfb7fff58b6e38fb174b3 | 37db22188dad104cce0fe66f5f5850070cbe5e98157bfb7fff58b6e38fb174b3 | YES |
+| promise_dates | response_due_date | 9cc0d366b9261c399fced216fa39d1dd6315a96e6d1645ae77fc26cf931f3703 | 9cc0d366b9261c399fced216fa39d1dd6315a96e6d1645ae77fc26cf931f3703 | YES |
+| promise_dates | revision_no | ae854a8cdcf62aae08731087510d51a36ed1b8cf632fe864a5e3ee00dd0d7ca9 | ae854a8cdcf62aae08731087510d51a36ed1b8cf632fe864a5e3ee00dd0d7ca9 | YES |
+| promise_dates | sequence_no | b6a29062ed24f664651e4721ba78bb264ace2db75696d211c484454648a88676 | b6a29062ed24f664651e4721ba78bb264ace2db75696d211c484454648a88676 | YES |
+| promise_dates | ship_from_location | f77d90a793538177d41368f9f152f821f27ac2ccdd032ff88bbefeca415f2553 | f77d90a793538177d41368f9f152f821f27ac2ccdd032ff88bbefeca415f2553 | YES |
+| promise_dates | ship_from_warehouse_id | 7bab76aa57d383800a73e2a3a725de79af828fedf8c9c0f018a98e9e4db3e40d | 7bab76aa57d383800a73e2a3a725de79af828fedf8c9c0f018a98e9e4db3e40d | YES |
+| promise_dates | slip_days | bba7e85f8408d453fa40351eb96977ec3b2db6172f65b86651dda2555f66ac4b | bba7e85f8408d453fa40351eb96977ec3b2db6172f65b86651dda2555f66ac4b | YES |
+| promise_dates | source | 5c7e2f16cd4292c1f2fdf956ba85145e8dffca5fea6266c6496a8b106ab1d8f8 | 5c7e2f16cd4292c1f2fdf956ba85145e8dffca5fea6266c6496a8b106ab1d8f8 | YES |
+| promise_dates | status | 93c151558be5ff44ddfb958222cbadaaf06a360549a534fa0c2769725567c081 | 93c151558be5ff44ddfb958222cbadaaf06a360549a534fa0c2769725567c081 | YES |
+| promise_dates | superseded_by | 78eb19fe0516bdf7d6ed44dc8264ae57942fe4b1c05431bd488f2ce401069bc0 | 78eb19fe0516bdf7d6ed44dc8264ae57942fe4b1c05431bd488f2ce401069bc0 | YES |
+| purchase_orders | carrier_id | a0f663235fa656e011782833f411f49b7ccb5e2d4b5379e1e0af078a05c89ea4 | a0f663235fa656e011782833f411f49b7ccb5e2d4b5379e1e0af078a05c89ea4 | YES |
+| purchase_orders | created_at | 6cbffff5a15d11740f994d5aba3dea3a262bcbb97564ab54c49a397f7487cbd6 | 6cbffff5a15d11740f994d5aba3dea3a262bcbb97564ab54c49a397f7487cbd6 | YES |
+| purchase_orders | created_by_actor_id | d146c5090dc8c765f27fdde6734531215003774d5c39004efce9fda062f061e7 | d146c5090dc8c765f27fdde6734531215003774d5c39004efce9fda062f061e7 | YES |
+| purchase_orders | created_by_role | 480cedd1c88c496084987c091dea9719d011172a2e74f26fb4fbfe70e3559f2b | 480cedd1c88c496084987c091dea9719d011172a2e74f26fb4fbfe70e3559f2b | YES |
+| purchase_orders | currency | 08f36ede434985717e51a97f2ccea4a0a0b44bd13e6b76e7b77f89897faab984 | 08f36ede434985717e51a97f2ccea4a0a0b44bd13e6b76e7b77f89897faab984 | YES |
+| purchase_orders | order_date | 1cde8a38074081d9153277af9b122fbce5834f72c906a6682b86e5975bfa533f | 1cde8a38074081d9153277af9b122fbce5834f72c906a6682b86e5975bfa533f | YES |
+| purchase_orders | planner_actor_id | 4c31afb61763b7f797920bc8a7d4bd8625c008ab16c2cf2ec83a3dbd50cbe802 | 4c31afb61763b7f797920bc8a7d4bd8625c008ab16c2cf2ec83a3dbd50cbe802 | YES |
+| purchase_orders | po_id | f1e6933ec56bd8f0a8f18a31097b725e4ff22ee4cee2f2a9c2ad47a183c687f9 | f1e6933ec56bd8f0a8f18a31097b725e4ff22ee4cee2f2a9c2ad47a183c687f9 | YES |
+| purchase_orders | required_delivery_date | e80ebc0532800936cdd6dc98a0fb76b8244b62ff7074a29a36ded6c93d5f3089 | e80ebc0532800936cdd6dc98a0fb76b8244b62ff7074a29a36ded6c93d5f3089 | YES |
+| purchase_orders | response_due_at | 251ead79d21bf571cd76de20797565337fac26e9213c823806b31933263e7b85 | 251ead79d21bf571cd76de20797565337fac26e9213c823806b31933263e7b85 | YES |
+| purchase_orders | status | 5a9d91601cc8bc6f037bc22a4fe69e0f5d04cf417ebdbfcab8af91978389daaf | 5a9d91601cc8bc6f037bc22a4fe69e0f5d04cf417ebdbfcab8af91978389daaf | YES |
+| purchase_orders | supplier_contact_email | 7f4addbfaa1c737749207a6a04dbdde219e2f50cbd827e8cc5f284b3ef2327ae | 7f4addbfaa1c737749207a6a04dbdde219e2f50cbd827e8cc5f284b3ef2327ae | YES |
+| purchase_orders | supplier_id | 242c935957b2b85f049ec40f8bffa28981341b61f49fc53bb95c79a6045ed293 | 242c935957b2b85f049ec40f8bffa28981341b61f49fc53bb95c79a6045ed293 | YES |
+| purchase_orders | total_order_value | baf979c96eb89f142babedfb7908f000448d6a381eb23ca0b289c0e3caa7d3b3 | baf979c96eb89f142babedfb7908f000448d6a381eb23ca0b289c0e3caa7d3b3 | YES |
+| purchase_orders | updated_at | e01db3fb9fe645dac279f954d74d877e5218ea3e9cb2561b0d3f54edc4538a08 | e01db3fb9fe645dac279f954d74d877e5218ea3e9cb2561b0d3f54edc4538a08 | YES |
+| purchase_orders | version_no | d93cac670849325435bbff9aa40e5a393b7d8e58310b810c5fe6e626d5c15b24 | d93cac670849325435bbff9aa40e5a393b7d8e58310b810c5fe6e626d5c15b24 | YES |
+| purchase_orders | warehouse_id | 6590b044a3b5b4e4652d5822c34d90402c86d8ccf9a13bca7594cdef9ef5334f | 6590b044a3b5b4e4652d5822c34d90402c86d8ccf9a13bca7594cdef9ef5334f | YES |
+| silence_report | as_of_date | 63e9b79820387f1adb3015d0bec19ba7f4aba1eeb6a1fcd02d0480f8b536108e | 63e9b79820387f1adb3015d0bec19ba7f4aba1eeb6a1fcd02d0480f8b536108e | YES |
+| silence_report | days_overdue | 95ddda7f700a878f733943b01beb5a5d9364a4354f732bb866b49198e582ae16 | 95ddda7f700a878f733943b01beb5a5d9364a4354f732bb866b49198e582ae16 | YES |
+| silence_report | lead_time_days | a801f47e0a76bd8f01b65a81dcc400fc63ca1c024d5f4fcb516be4120574326a | a801f47e0a76bd8f01b65a81dcc400fc63ca1c024d5f4fcb516be4120574326a | YES |
+| silence_report | order_date | b58347ba0d4e84447491f7a4c8fe328d9b598531196b6aeda6068a56c951847a | b58347ba0d4e84447491f7a4c8fe328d9b598531196b6aeda6068a56c951847a | YES |
+| silence_report | po_id | 7d56fdad42fa81fc962be27d5f20431b0b875a8b734fb244e949779c730e922b | 7d56fdad42fa81fc962be27d5f20431b0b875a8b734fb244e949779c730e922b | YES |
+| silence_report | reliability_score | 20d60e939941de12a5ccb6febd93eb7e743d64f2d57aa4b6fe02809d344d6c54 | 20d60e939941de12a5ccb6febd93eb7e743d64f2d57aa4b6fe02809d344d6c54 | YES |
+| silence_report | requested_delivery_date | 3df3c04cbfc5c3de71cb20bcf01d6679a956796e21966cc0aca0c274b24d2716 | 3df3c04cbfc5c3de71cb20bcf01d6679a956796e21966cc0aca0c274b24d2716 | YES |
+| silence_report | response_due_at | f7168dcf2e89303750677b941301bff43c4bb7dc97cf6c7322258e62a7b8a938 | f7168dcf2e89303750677b941301bff43c4bb7dc97cf6c7322258e62a7b8a938 | YES |
+| silence_report | supplier_id | fa784a83d0731881c537947112f1e0f792fcd129be5daea6b7ba88967b994456 | fa784a83d0731881c537947112f1e0f792fcd129be5daea6b7ba88967b994456 | YES |
+| silence_report | supplier_name | 0ef612f6243f43d29fd665a679693024b5b0b174f4aac59ca87ac8b594ae330a | 0ef612f6243f43d29fd665a679693024b5b0b174f4aac59ca87ac8b594ae330a | YES |
+| suppliers | ack_rate | 522ea83b5ce0c1eac306a3cddead429533d6d32985ee691a2f1d3d7faefb8ae0 | 522ea83b5ce0c1eac306a3cddead429533d6d32985ee691a2f1d3d7faefb8ae0 | YES |
+| suppliers | avg_slip_days | 3cdd5c641a347a56682bcad6bbc9fd52b9695eddb8ea98892a8af6386df4213a | 3cdd5c641a347a56682bcad6bbc9fd52b9695eddb8ea98892a8af6386df4213a | YES |
+| suppliers | created_at | efa06a4ebb72d2f06addca8506677b99aa756131a889526bc9c67bcf0ea0877e | efa06a4ebb72d2f06addca8506677b99aa756131a889526bc9c67bcf0ea0877e | YES |
+| suppliers | data_owner_role | bd1db0a0770315d7cd6a9ebdaa591f8df4ef9fbe1d7b6882d3a353be71b0ecd6 | bd1db0a0770315d7cd6a9ebdaa591f8df4ef9fbe1d7b6882d3a353be71b0ecd6 | YES |
+| suppliers | default_currency | 84abed090eaabd3a63e52d914cb1cdf2afc40ff13bc42c7d7f4e6daf56bd8818 | 84abed090eaabd3a63e52d914cb1cdf2afc40ff13bc42c7d7f4e6daf56bd8818 | YES |
+| suppliers | lead_time_days | bb9e890af6f59e238838fd11ac0263456e383174ef6d19471ed6756d9be71c74 | bb9e890af6f59e238838fd11ac0263456e383174ef6d19471ed6756d9be71c74 | YES |
+| suppliers | on_time_promise_rate | 2672ad7cbe0f49d95390567cfc7a7a8dff6268944397276730e122b38f6be8b4 | 2672ad7cbe0f49d95390567cfc7a7a8dff6268944397276730e122b38f6be8b4 | YES |
+| suppliers | on_time_rate | 5c24279008c50752b9c67a0968458509de0c51a33914e9dfef8cf415de5d021e | 5c24279008c50752b9c67a0968458509de0c51a33914e9dfef8cf415de5d021e | YES |
+| suppliers | preferred_carrier_id | 44a7d2d6be8134d8a1bfe0cf5224ef466f2da228ff09f62879848f9a9c022db3 | 44a7d2d6be8134d8a1bfe0cf5224ef466f2da228ff09f62879848f9a9c022db3 | YES |
+| suppliers | region | 93c4800b7449b61fedfc7e71c7d1ec6840e930b2ffd37ef5d0fbc6b79cd24878 | 93c4800b7449b61fedfc7e71c7d1ec6840e930b2ffd37ef5d0fbc6b79cd24878 | YES |
+| suppliers | reliability_score | a55e7d2f2f346fcaf6c723db15d09290269f261ac96ab9f9b220f0ef6a303d2e | a55e7d2f2f346fcaf6c723db15d09290269f261ac96ab9f9b220f0ef6a303d2e | YES |
+| suppliers | risk_tier | bea0fd7f9642af639f40567887fa576d8960011859b309def233b8b0cd23fb3c | bea0fd7f9642af639f40567887fa576d8960011859b309def233b8b0cd23fb3c | YES |
+| suppliers | supplier_code | 4f4ddafc81311c3fc07972e2e7f6dd48e41c382d104dc1c495f4321782ac8d93 | 4f4ddafc81311c3fc07972e2e7f6dd48e41c382d104dc1c495f4321782ac8d93 | YES |
+| suppliers | supplier_contact_email | a275bd868080bae3c9a6fb2e12aa3758936b317e15bb69e2d854f925f1425f60 | a275bd868080bae3c9a6fb2e12aa3758936b317e15bb69e2d854f925f1425f60 | YES |
+| suppliers | supplier_contact_name | f0c69f37faeded3dc9f9830573314b7ba6a7381e0dbd84e917b10f8df582d2c8 | f0c69f37faeded3dc9f9830573314b7ba6a7381e0dbd84e917b10f8df582d2c8 | YES |
+| suppliers | supplier_contact_phone | b89992ad88273959a7cbcd0c69266b1668a3a61a7b00a3d1df7d4be4bcf2b464 | b89992ad88273959a7cbcd0c69266b1668a3a61a7b00a3d1df7d4be4bcf2b464 | YES |
+| suppliers | supplier_id | 7a289e5ee47e13a83380de33f61b388c02f8a431ef133d154555721d86f9d637 | 7a289e5ee47e13a83380de33f61b388c02f8a431ef133d154555721d86f9d637 | YES |
+| suppliers | supplier_name | 6c1d1353c2812cd1fa7df606b5732710d3c1457bd45795c4e24d25deb3ea2f27 | 6c1d1353c2812cd1fa7df606b5732710d3c1457bd45795c4e24d25deb3ea2f27 | YES |
+| suppliers | supplier_status | 74338a9d49b22a88869a359d9544aee3d1ae334b3385f4865d965b8d0a4b6036 | 74338a9d49b22a88869a359d9544aee3d1ae334b3385f4865d965b8d0a4b6036 | YES |
+| suppliers | updated_at | 02ad9122a262526d0ebdadfbe6f1403be4c6c0ac94c99ec641a7467dc47d1d7e | 02ad9122a262526d0ebdadfbe6f1403be4c6c0ac94c99ec641a7467dc47d1d7e | YES |
+| warehouses | created_at | 5fc8e63570c8d612682325850408609ba296855ef718add8c2656bdc29fb949e | 5fc8e63570c8d612682325850408609ba296855ef718add8c2656bdc29fb949e | YES |
+| warehouses | is_active | ab8968f4e8b587b46467cb3275c2ece73b9c21d533d4acde6e1c51769e869172 | ab8968f4e8b587b46467cb3275c2ece73b9c21d533d4acde6e1c51769e869172 | YES |
+| warehouses | site_code | ba1ed0dc7d49bc7a9755d1a5ea241fa13ec670c056c32973dc1831bdcfae4cd8 | ba1ed0dc7d49bc7a9755d1a5ea241fa13ec670c056c32973dc1831bdcfae4cd8 | YES |
+| warehouses | timezone | 85b1bbf297d89e04bc0b3aa0462e045c28c360b7ac584c3856f7dbbdd79c5b3e | 85b1bbf297d89e04bc0b3aa0462e045c28c360b7ac584c3856f7dbbdd79c5b3e | YES |
+| warehouses | warehouse_id | 96db873089c071ee186b27e3870c56de53ce5bdbe9de25ecedf30052e845135a | 96db873089c071ee186b27e3870c56de53ce5bdbe9de25ecedf30052e845135a | YES |
+| warehouses | warehouse_name | 88b8105ec2628c0c89d988a839cc13536d3dafea9f4eb3cd50aac2860be8b3a0 | 88b8105ec2628c0c89d988a839cc13536d3dafea9f4eb3cd50aac2860be8b3a0 | YES |
+
+### Full-scale numeric means (10 decimal places)
+
+| table_name | column_name | mean_run1 | mean_run2 | match |
+| --- | --- | --- | --- | --- |
+| acknowledgement_lines | accepted_qty | 311.5053023181 | 311.5053023181 | YES |
+| acknowledgement_lines | acknowledged_unit_price | 603.3781198072 | 603.3781198072 | YES |
+| acknowledgement_lines | date_slip_days | 1.6160091447 | 1.6160091447 | YES |
+| acknowledgement_lines | price_delta_pct | 0.1542714850 | 0.1542714850 | YES |
+| acknowledgement_lines | qty_delta_pct | -26.7340721276 | -26.7340721276 | YES |
+| acknowledgement_lines | rejected_qty | 166.0850256369 | 166.0850256369 | YES |
+| acknowledgement_lines | requested_qty | 477.5903279550 | 477.5903279550 | YES |
+| acknowledgement_lines | requested_unit_price | 602.4342669268 | 602.4342669268 | YES |
+| acknowledgement_lines | revision_no | 1.2100068855 | 1.2100068855 | YES |
+| acknowledgements | ack_accepted_qty | 1255.6332976951 | 1255.6332976951 | YES |
+| acknowledgements | ack_rejected_qty | 669.5995315190 | 669.5995315190 | YES |
+| acknowledgements | acknowledged_value | 758685.0239285383 | 758685.0239285383 | YES |
+| acknowledgements | date_slip_days | 5.8002043365 | 5.8002043365 | YES |
+| acknowledgements | po_line_id | NA | NA | YES |
+| acknowledgements | price_delta_pct | 0.3122349625 | 0.3122349625 | YES |
+| acknowledgements | projected_qty | 1255.6332976951 | 1255.6332976951 | YES |
+| acknowledgements | projected_value | 758685.0239285383 | 758685.0239285383 | YES |
+| acknowledgements | promised_qty | 1255.6332976951 | 1255.6332976951 | YES |
+| acknowledgements | promised_value | 758685.0239285383 | 758685.0239285383 | YES |
+| acknowledgements | qty_delta_pct | -24.0484970564 | -24.0484970564 | YES |
+| acknowledgements | requested_qty | 1925.2328292141 | 1925.2328292141 | YES |
+| acknowledgements | requested_value | 1158702.6275553086 | 1158702.6275553086 | YES |
+| acknowledgements | revision_no | 1.1779135425 | 1.1779135425 | YES |
+| actors | is_active | 0.9421487603 | 0.9421487603 | YES |
+| approvals | approval_round | 1.3217517776 | 1.3217517776 | YES |
+| approvals | threshold_value | 6.0138978668 | 6.0138978668 | YES |
+| carriers | is_active | 1.0000000000 | 1.0000000000 | YES |
+| change_requests | delta | 0.1477425780 | 0.1477425780 | YES |
+| change_requests | delta_abs | 7.7047946152 | 7.7047946152 | YES |
+| change_requests | delta_pct | -2.3312104822 | -2.3312104822 | YES |
+| change_requests | previous_qty | 416.2818361244 | 416.2818361244 | YES |
+| change_requests | previous_unit_price | 602.6582428430 | 602.6582428430 | YES |
+| change_requests | requested_qty | 321.1513169856 | 321.1513169856 | YES |
+| change_requests | requested_unit_price | 622.9838993090 | 622.9838993090 | YES |
+| coverage_report | count | 5823.5000000000 | 5823.5000000000 | YES |
+| coverage_report | denominator | 18723.2500000000 | 18723.2500000000 | YES |
+| coverage_report | percentage | 27.3751250000 | 27.3751250000 | YES |
+| coverage_report | seed | 20261022.0000000000 | 20261022.0000000000 | YES |
+| coverage_report | target_proportion | 0.2737500000 | 0.2737500000 | YES |
+| entity_event | target_po_id | NA | NA | YES |
+| entity_event | target_po_line_id | NA | NA | YES |
+| entity_event | target_promise_date_id | NA | NA | YES |
+| entity_event | target_supplier_id | NA | NA | YES |
+| inventory_plans | acknowledged_qty | 116.7252621141 | 116.7252621141 | YES |
+| inventory_plans | demand_qty | 461.7462783951 | 461.7462783951 | YES |
+| inventory_plans | is_effective | 0.7011041564 | 0.7011041564 | YES |
+| inventory_plans | on_hand_qty | 0.0000000000 | 0.0000000000 | YES |
+| inventory_plans | plan_revision_no | 1.2988958436 | 1.2988958436 | YES |
+| inventory_plans | plan_version | 1.2988958436 | 1.2988958436 | YES |
+| inventory_plans | planned_receipt_qty | 448.6744703390 | 448.6744703390 | YES |
+| inventory_plans | projected_available_qty | 448.6744703390 | 448.6744703390 | YES |
+| inventory_plans | projected_qty | 448.6744703390 | 448.6744703390 | YES |
+| inventory_plans | projected_shortage_qty | 13.0718080561 | 13.0718080561 | YES |
+| inventory_plans | promised_qty | 116.7252621141 | 116.7252621141 | YES |
+| inventory_plans | requested_qty | 461.7462783951 | 461.7462783951 | YES |
+| inventory_plans | reserved_qty | 0.0000000000 | 0.0000000000 | YES |
+| items | unit_price_max | 997.4462000000 | 997.4462000000 | YES |
+| items | unit_price_min | 205.0612000000 | 205.0612000000 | YES |
+| notifications | delivered_at | NA | NA | YES |
+| notifications | last_error | NA | NA | YES |
+| notifications | open_impact_count | 0.2134605193 | 0.2134605193 | YES |
+| notifications | retry_count | 0.0000000000 | 0.0000000000 | YES |
+| po_lines | ack_accepted_qty | 336.9006911927 | 336.9006911927 | YES |
+| po_lines | ack_rejected_qty | 90.5421042732 | 90.5421042732 | YES |
+| po_lines | acknowledged_unit_price | 602.1562324349 | 602.1562324349 | YES |
+| po_lines | acknowledged_value | 216680.1261888065 | 216680.1261888065 | YES |
+| po_lines | line_no | 2.7467649714 | 2.7467649714 | YES |
+| po_lines | line_total | 283329.3883019862 | 283329.3883019862 | YES |
+| po_lines | projected_qty | 336.9006911927 | 336.9006911927 | YES |
+| po_lines | projected_unit_price | 602.1562324349 | 602.1562324349 | YES |
+| po_lines | projected_value | 216680.1261888065 | 216680.1261888065 | YES |
+| po_lines | promised_qty | 336.9006911927 | 336.9006911927 | YES |
+| po_lines | promised_unit_price | 602.1562324349 | 602.1562324349 | YES |
+| po_lines | promised_value | 216680.1261888065 | 216680.1261888065 | YES |
+| po_lines | requested_qty | 472.8559661450 | 472.8559661450 | YES |
+| po_lines | unit_price | 601.0447552412 | 601.0447552412 | YES |
+| production_order_impact | new_projected_qty | 416.9282656748 | 416.9282656748 | YES |
+| production_order_impact | old_projected_qty | 515.0463475027 | 515.0463475027 | YES |
+| production_order_impact | shortfall_pct | 6.8189492030 | 6.8189492030 | YES |
+| production_order_impact | slip_days | 1.6875664187 | 1.6875664187 | YES |
+| production_order_line | allocated_quantity | 280.6289960000 | 280.6289960000 | YES |
+| production_orders | actual_end_date | NA | NA | YES |
+| production_orders | actual_start_date | NA | NA | YES |
+| production_orders | affected_material_qty | 280.6289960000 | 280.6289960000 | YES |
+| production_orders | completed_qty | 0.0000000000 | 0.0000000000 | YES |
+| production_orders | delay_days | 3.3236000000 | 3.3236000000 | YES |
+| production_orders | planned_qty | 140.3145044000 | 140.3145044000 | YES |
+| production_orders | released_qty | 0.0000000000 | 0.0000000000 | YES |
+| production_orders | schedule_shift_days | 1.2992000000 | 1.2992000000 | YES |
+| production_orders | shortfall_qty | 5.4276082000 | 5.4276082000 | YES |
+| promise_dates | promised_qty | 397.9082957037 | 397.9082957037 | YES |
+| promise_dates | revision_no | 1.0155325010 | 1.0155325010 | YES |
+| promise_dates | sequence_no | 3.4329757927 | 3.4329757927 | YES |
+| promise_dates | slip_days | 1.5908504777 | 1.5908504777 | YES |
+| purchase_orders | total_order_value | 1129804.2687930001 | 1129804.2687930001 | YES |
+| purchase_orders | version_no | 1.0000000000 | 1.0000000000 | YES |
+| silence_report | days_overdue | 206.4540000000 | 206.4540000000 | YES |
+| silence_report | lead_time_days | 22.8700000000 | 22.8700000000 | YES |
+| silence_report | reliability_score | 0.3962986000 | 0.3962986000 | YES |
+| suppliers | ack_rate | 0.9561660000 | 0.9561660000 | YES |
+| suppliers | avg_slip_days | 2.1861750000 | 2.1861750000 | YES |
+| suppliers | lead_time_days | 27.4150000000 | 27.4150000000 | YES |
+| suppliers | on_time_promise_rate | 0.7344175000 | 0.7344175000 | YES |
+| suppliers | on_time_rate | 0.7695635000 | 0.7695635000 | YES |
+| suppliers | reliability_score | 0.7469270000 | 0.7469270000 | YES |
+| warehouses | is_active | 1.0000000000 | 1.0000000000 | YES |
+
+- Full-scale event IDs and ordering identical: **YES**
+- Full-scale event timestamps identical: **YES**
 
 ## Conclusion
 

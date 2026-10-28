@@ -1,0 +1,30 @@
+{
+  "dataset": "/mnt/data/supplier-ack-system/data/generated",
+  "file_count": 12,
+  "files": {
+    "data_quality_report.md": "0ce74d92dc4a854cafda9a8ba4d5217a243887c8ccccdcaba688b1483d99b561",
+    "decision_log.csv": "4f5e798708d44b8feea37d77e50d18ac6dcc00c79bff5df4d49b7595cf775a54",
+    "exception_report.csv": "924e5cc146e2d4d8f1a761a6642a587cb3c7f22f50e306b553f6ed332fa5b478",
+    "exception_report.md": "7cfc7ffa2fe367f2433ba667fae02dd20188bbd9debde072011e3ddb0d9d1930",
+    "figures/ack_status_breakdown.png": "2b81b7b60e271e43f3ab956f1d0f70ce03837afd2930e1d1aae02948aac03400",
+    "figures/changes_by_type_and_decision.png": "6599ed0ea2fe8668dd0de26ebb238e642f82b08cdd547077893136678ed2009e",
+    "figures/exception_counts_by_type.png": "767d4a3f74188df169367ab6c0ba7da37c1b286b16d5b6b47cfd73863c1b5552",
+    "figures/projected_vs_requested_supply.png": "8b966f135a2dce0b328615e7cd0080764b6ca1680ef8f8f5f31bb2ece5189156",
+    "figures/supplier_slip_day_distribution.png": "230b922c81618c4a3e87b28b3699abbb5c1a39fe3812adc2aba9b8d3f6af9266",
+    "impact_report.csv": "92ebd96eeed590fd5bb2a4201194ba1e402f67cf60610b04e6ddf35f03603001",
+    "summary_report.md": "237528083e64271994078a9abee8dcc0c4ce50703fae867b9332986f33d99ef5",
+    "supplier_scorecard.csv": "b5390879087c8c007bd9169d8b382cf515824f9cc0f6d7edad5d053266c03029"
+  },
+  "metrics": {
+    "ack_rate_pct": 95.0,
+    "acknowledged_pos": 9500,
+    "avg_slip_days": 1.6147,
+    "median_slip_days": -1.0,
+    "on_time_promise_rate_pct": 70.0018,
+    "partial_acceptance_rate_pct": 22.0,
+    "promise_count": 33762,
+    "purchase_orders": 10000,
+    "revision_rate_pct": 8.0,
+    "silence_rate_pct": 5.0
+  }
+}

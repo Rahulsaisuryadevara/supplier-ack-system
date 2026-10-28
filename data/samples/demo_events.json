@@ -1,0 +1,97 @@
+{
+  "events": [
+    {
+      "event_id": "demo-001-ack-new",
+      "event_type": "ack_submitted",
+      "po_id": "PO-2026-000072",
+      "revision_no": 1,
+      "lines": [
+        {
+          "po_line_id": "PO-2026-000072-L01",
+          "promised_offset_days": 7
+        }
+      ]
+    },
+    {
+      "event_id": "demo-001b-ack-revision-2",
+      "event_type": "ack_submitted",
+      "po_id": "PO-2026-000072",
+      "revision_no": 2,
+      "lines": [
+        {
+          "po_line_id": "PO-2026-000072-L01",
+          "promised_offset_days": 8
+        }
+      ]
+    },
+    {
+      "event_id": "demo-002-change",
+      "event_type": "change_requested",
+      "po_id": "PO-2026-000043",
+      "po_line_id": "PO-2026-000043-L01",
+      "change_type": "date",
+      "requested_by_role": "planner",
+      "offset_days": 3
+    },
+    {
+      "event_id": "demo-003-approval",
+      "event_type": "approval_decision",
+      "change_request_id": "CHG-PO-2026-000043-000001",
+      "decision": "approved",
+      "approval_level": "planner",
+      "comments": "Demo: date change is within planner threshold."
+    },
+    {
+      "event_id": "demo-004-impossible-promise",
+      "event_type": "promise_updated",
+      "po_id": "PO-2026-000042",
+      "po_line_id": "PO-2026-000042-L01",
+      "ack_id": "ACK-PO-2026-000042-01",
+      "promised_date": "2026-01-01",
+      "promised_qty": 100.0
+    },
+    {
+      "event_id": "demo-005-unapproved-plan-attempt",
+      "event_type": "change_requested",
+      "po_id": "PO-2026-000042",
+      "po_line_id": "PO-2026-000042-L01",
+      "change_type": "date",
+      "requested_by_role": "planner",
+      "attempt_plan_update": true,
+      "offset_days": 45
+    },
+    {
+      "event_id": "demo-006-silence-timeout",
+      "event_type": "silence_timeout",
+      "po_id": "PO-2026-000089",
+      "requested_promised_date": "2026-06-15"
+    },
+    {
+      "event_id": "demo-007-stale-revision",
+      "event_type": "ack_revision_received",
+      "po_id": "PO-2026-000072",
+      "revision_no": 1,
+      "ack_id": "ACK-PO-2026-000072-01",
+      "lines": [
+        {
+          "po_line_id": "PO-2026-000072-L01",
+          "accepted_qty": 100.0,
+          "promised_date": "2026-07-20"
+        }
+      ]
+    },
+    {
+      "event_id": "demo-008-invalid-reference",
+      "event_type": "ack_submitted",
+      "po_id": "PO-2026-999999",
+      "revision_no": 1,
+      "lines": [
+        {
+          "po_line_id": "PO-2026-999999-L01",
+          "accepted_qty": 1,
+          "promised_date": "2026-12-01"
+        }
+      ]
+    }
+  ]
+}

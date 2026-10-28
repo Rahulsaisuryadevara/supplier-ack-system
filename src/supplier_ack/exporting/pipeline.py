@@ -1,5 +1,5 @@
 from __future__ import annotations
-import csv, hashlib, importlib.metadata, json, os, re, sqlite3, subprocess, sys
+import csv, hashlib, importlib.metadata, json, os, re, shutil, sqlite3, subprocess, sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -154,6 +154,12 @@ def export_dataset(dataset_dir:str|Path, formats:str|list[str]="csv,json,sql", *
         dest=output/"sql"; dest.mkdir(parents=True,exist_ok=True); sql_path=dest/"seed.sql"; db_path=dest/"seed.db"
         sql_path.write_text(_build_sql(frames),encoding="utf-8")
         _load_db(db_path,sql_path,frames)
+        # The review-ready starter database has a stable, easy-to-find path. It is
+        # copied directly from the SQLite artifact produced by loading seed.sql.
+        # Only publish this convenience artifact when exporting the starter source
+        # in place; full-scale exports remain under data/generated/sql/.
+        if output.resolve() == root.resolve() and _scale_from_root(root) == "starter":
+            shutil.copy2(db_path, root / "demo.db")
         db_dataset=_dataset_from_db(db_path,truth_records)
         from supplier_ack.validation.suite import validate_dataset
         db_validation=validate_dataset(db_dataset,root)

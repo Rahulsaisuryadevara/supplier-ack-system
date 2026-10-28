@@ -130,3 +130,102 @@ python -m supplier_ack.cli verify-reproducibility --seed 20261022 --scale starte
 ```
 
 The harness writes isolated CSV run snapshots under `.reproducibility/`, compares table row counts, every output file's SHA-256, sorted per-column value hashes, and numeric means to ten decimal places. It also checks deterministic IDs and event-log IDs/timestamps/order, then generates run 3 with a different seed to prove that the seed changes entity content. The report is written to `docs/reproducibility_report.md`. The generation API derives event timestamps from seeded entity dates; it does not use wall-clock timestamps in generated records. Use `--skip-full-scale` only for a focused local/test run.
+
+## Runtime workflow engine (live event processing)
+
+The offline generator creates a reproducible historical dataset; the runtime engine processes new events transactionally against SQLite while reusing `rules/thresholds.py` (`evaluate_threshold`, `required_approval_level`, `can_apply`, `computed_delta`) and `rules/derived.py` (`derive_ack_status`, `derive_promise_date`). It does not maintain a second copy of the business thresholds. Runtime audit timestamps are wall-clock timestamps for actual processing; generated historical business data remains deterministic.
+
+Run a stream of events from the sample file. If `data/generated/app.db` does not exist, the engine initializes it from `data/generated/sql/seed.db` when present, otherwise it uses the committed starter seed `data/samples/sql/seed.db`:
+
+```bash
+python -m supplier_ack.cli workflow run --db data/generated/app.db --events data/samples/demo_events.json
+python -m supplier_ack.cli workflow status --db data/generated/app.db --po PO-2026-000043
+python -m supplier_ack.cli workflow exceptions --db data/generated/app.db
+python -m supplier_ack.cli workflow decisions --db data/generated/app.db
+```
+
+`demo_events.json` exercises two new acknowledgement revisions, a threshold-based change request, a valid approval that creates an InventoryPlan version, an impossible promise date, an unapproved plan-update attempt, a supplier silence timeout, a late-arriving stale revision, and an invalid PO reference. Relative `promised_offset_days` and `offset_days` values let the sample derive dates from the chosen seed database rather than relying on one scale-specific date. The last four paths create queryable exception records. Event IDs are idempotency keys: replaying the same input event IDs is ignored rather than applying the event twice. The engine appends `entity_event` audit rows and retains runtime exceptions and threshold decisions in `runtime_exception` and `runtime_decision`.
+
+Key safety guarantees:
+
+- A submitted acknowledgement never directly changes InventoryPlan. Only `approval_decision` can apply a change, and the engine calls the shared `can_apply()` function again inside the transaction before creating a new plan version.
+- Invalid PO/line references, promises before the PO order date, stale revisions, wrong-level approvals, and unapproved plan updates are refused and recorded with rule IDs and trace IDs.
+- Plan updates preserve `previous_version_id`; downstream production conflicts create impact records and update production-order status, with planner/operations and logistics/carrier/warehouse notifications routed by role.
+- `workflow status` shows the latest acknowledgement, effective promises, open changes, plan history, impacts, notifications, and event timeline for a PO. Exception and decision commands return the durable runtime audit queues as JSON.
+
+Run `pytest -q tests/test_workflow_engine.py` to verify the demo flow, approval-before-plan gate, and stale-revision guard.
+
+
+## Metrics and persona reports
+
+Generate the Operations Manager summary, Logistics Analyst exception trace report, Planner supplier scorecard and decision log, Carrier/Warehouse Operator impact report, data-quality evaluation, and five deterministic figures from the exported dataset:
+
+```bash
+python -m supplier_ack.cli report --dataset data/generated/ --out reports/
+```
+
+For the committed small reviewer dataset:
+
+```bash
+python -m supplier_ack.cli report --dataset data/samples/ --out reports/starter/
+```
+
+The command computes metrics from source tables, writes CSV/Markdown outputs and figures under `reports/`, and creates `report_manifest.json` with SHA-256 checksums so the same dataset can be regenerated and compared. Supplier alerts use the portfolio mean and population standard deviation; no scores or exception counts are randomly assigned.
+
+
+## Unified CLI and one-command demo
+
+Every command and subcommand supports `--help`. Use either `python -m supplier_ack.cli` or the installed `supplier-ack` console script.
+
+```bash
+# Check Python/dependencies/configuration/disk space/seed sanity
+python -m supplier_ack.cli doctor
+
+# Generate, reconcile, export source CSVs, and run the 14-group validation gate
+python -m supplier_ack.cli generate --config config/generator_config.yaml --scale starter --seed 20261022
+python -m supplier_ack.cli generate --config config/generator_config.yaml --scale full --seed 20261022
+
+# Export all three formats from the generated source dataset
+python -m supplier_ack.cli export --dataset data/generated/ --formats csv,json,sql --out data/generated/
+
+# Validate, detect labelled anomalies, and build persona-targeted reports
+python -m supplier_ack.cli validate --dataset data/generated/
+python -m supplier_ack.cli detect --dataset data/generated/
+python -m supplier_ack.cli report --dataset data/generated/ --out reports/
+
+# Reproducibility (starter plus the full-scale pair unless --skip-full-scale is supplied)
+python -m supplier_ack.cli verify-repro --seed 20261022 --scale starter
+
+# Explore the committed starter database. Workflow commands mutate the database,
+# so copy it first if you want to preserve the clean demo state.
+cp data/samples/demo.db /tmp/supplier-ack-demo.db
+python -m supplier_ack.cli workflow run --db /tmp/supplier-ack-demo.db --events data/samples/demo_events.json
+python -m supplier_ack.cli workflow status --db /tmp/supplier-ack-demo.db --po PO-2026-000043
+python -m supplier_ack.cli workflow exceptions --db /tmp/supplier-ack-demo.db
+python -m supplier_ack.cli workflow decisions --db /tmp/supplier-ack-demo.db
+
+# Full end-to-end starter walkthrough; each stage prints PASS/FAIL
+bash scripts/demo.sh
+
+# Complete test suite
+python -m pytest -q
+```
+
+`export --out` is the export root; `--dataset` is the source directory and defaults to `data/generated/`. `generate` defaults to starter scale and seed `20261022`. The demo script generates starter data, exports CSV/JSON/SQL and the SQLite demo database, validates, detects anomalies, builds reports, and processes the demo event file against a disposable copy of the committed database so repeated runs do not mutate `data/samples/demo.db`.
+
+### Error handling
+
+Bad seed values and unknown scales are rejected by argument parsing. Missing config/dataset paths, malformed CSVs, invalid export formats, and SQLite databases without the required foreign-key declarations produce a concise command error and a non-zero exit code without a traceback. Run `python -m supplier_ack.cli <command> --help` or `python -m supplier_ack.cli workflow <action> --help` for command-specific options.
+
+### Measured full-scale performance
+
+Benchmarked on Python 3.13.5, pandas 2.2.3, NumPy 2.3.5, PyYAML 6.0.3, matplotlib 3.10.8, Linux x86_64. For 10,000 POs / 15,000 acknowledgement-plus-change events:
+
+| Stage | Wall time | Peak RSS |
+|---|---:|---:|
+| Generation core + source CSV write | 33.56 s | 725,232 KiB |
+| Validation (15 groups, 1,716,868 checked rows) | 12.07 s | 605,600 KiB |
+| CSV/JSON/SQL export + SQLite seed verification | 27.46 s | 1,062,368 KiB |
+| **Measured total of stages** | **73.09 s** | **about 1.04 GiB max** |
+
+These are measured stage timings, not a promise for every laptop; disk speed and available RAM affect export time. The export run wrote the SQL seed and SQLite database and validated imported row counts. Allow at least 2 GiB free disk space for full-scale all-format exports; the `doctor` command reports current free space and a conservative estimate.

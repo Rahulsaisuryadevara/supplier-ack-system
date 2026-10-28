@@ -162,37 +162,52 @@ def latest_approved_plan_versions(dataset: Mapping[str, pd.DataFrame]) -> dict[s
 
 
 def derive_supplier_scores(dataset: Mapping[str, pd.DataFrame]) -> dict[str, dict[str, float]]:
-    suppliers = _records(dataset, "suppliers")
-    pos = _records(dataset, "purchase_orders")
-    acks = _records(dataset, "acknowledgements")
-    promises = _records(dataset, "promise_dates")
-    lines = {str(row["po_line_id"]): row for row in _records(dataset, "po_lines")}
-    po_by_id = {str(row["po_id"]): row for row in pos}
-    po_ids_by_supplier: dict[str, set[str]] = {}
-    for po in pos:
-        po_ids_by_supplier.setdefault(str(po["supplier_id"]), set()).add(str(po["po_id"]))
-    acked_pos: dict[str, set[str]] = {}
-    for ack in acks:
-        acked_pos.setdefault(str(ack["supplier_id"]), set()).add(str(ack["po_id"]))
-    current_promises = [row for row in promises if str(row.get("status")) == "CURRENT"]
-    promise_stats: dict[str, list[int]] = {}
-    for promise in current_promises:
-        line = lines.get(str(promise.get("po_line_id")))
-        po = po_by_id.get(str(promise.get("po_id")))
-        if not line or not po:
-            continue
-        slip = derive_promise_date(promise.get("promised_date"), line.get("required_date"))["slip_days"]
-        promise_stats.setdefault(str(po["supplier_id"]), []).append(int(slip))
+    """Recompute supplier scores with indexed/vectorized joins, not sampled values.
+
+    This avoids materializing every PromiseDate as a Python dict during full-scale
+    generation and keeps the score calculation practical inside repeated test runs.
+    """
+    suppliers = dataset.get("suppliers", pd.DataFrame())
+    pos = dataset.get("purchase_orders", pd.DataFrame())
+    acks = dataset.get("acknowledgements", pd.DataFrame())
+    promises = dataset.get("promise_dates", pd.DataFrame())
+    lines = dataset.get("po_lines", pd.DataFrame())
+    if suppliers.empty:
+        return {}
+
+    po_denominators = pos.groupby("supplier_id")["po_id"].nunique() if not pos.empty else pd.Series(dtype=int)
+    acked_po_counts = (acks.groupby("supplier_id")["po_id"].nunique() if not acks.empty
+                       else pd.Series(dtype=int))
+    current = promises.loc[promises["status"].astype(str).eq("CURRENT")].copy() if not promises.empty else pd.DataFrame()
+    if not current.empty and not lines.empty and not pos.empty:
+        current = current.merge(lines[["po_line_id", "required_date"]], on="po_line_id", how="left", validate="many_to_one")
+        current = current.merge(pos[["po_id", "supplier_id"]], on="po_id", how="left", validate="many_to_one", suffixes=("", "_po"))
+        promised = pd.to_datetime(current["promised_date"], errors="coerce")
+        required = pd.to_datetime(current["required_date"], errors="coerce")
+        current["_slip"] = (promised - required).dt.days
+        current["_positive_slip"] = current["_slip"].clip(lower=0)
+        stats = current.groupby("supplier_id").agg(
+            _promise_count=("_slip", "count"),
+            _on_time=("_slip", lambda values: int(values.le(0).sum())),
+            _avg_slip=("_positive_slip", "mean"),
+        )
+    else:
+        stats = pd.DataFrame(columns=["_promise_count", "_on_time", "_avg_slip"])
+
     result: dict[str, dict[str, float]] = {}
-    for supplier in suppliers:
-        sid = str(supplier["supplier_id"])
-        denomin = len(po_ids_by_supplier.get(sid, set()))
-        acked = len(acked_pos.get(sid, set()))
-        slips = promise_stats.get(sid, [])
+    for sid in suppliers["supplier_id"].astype(str):
+        denominator = int(po_denominators.get(sid, 0))
+        acked = int(acked_po_counts.get(sid, 0))
+        if sid in stats.index and int(stats.loc[sid, "_promise_count"] or 0) > 0:
+            count = int(stats.loc[sid, "_promise_count"])
+            on_time_rate = round(float(stats.loc[sid, "_on_time"]) / count, 4)
+            avg_slip = round(float(stats.loc[sid, "_avg_slip"] or 0.0), 3)
+        else:
+            on_time_rate, avg_slip = 0.0, 0.0
         result[sid] = {
-            "ack_rate": round(acked / denomin, 4) if denomin else 0.0,
-            "on_time_promise_rate": round(sum(1 for slip in slips if slip <= 0) / len(slips), 4) if slips else 0.0,
-            "avg_slip_days": round(sum(max(0, slip) for slip in slips) / len(slips), 3) if slips else 0.0,
+            "ack_rate": round(acked / denominator, 4) if denominator else 0.0,
+            "on_time_promise_rate": on_time_rate,
+            "avg_slip_days": avg_slip,
         }
     return result
 

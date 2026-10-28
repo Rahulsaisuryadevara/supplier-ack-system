@@ -53,9 +53,15 @@ def _validate_frames(generated: Mapping[str, pd.DataFrame]) -> None:
         if not isinstance(dataframe, pd.DataFrame) or key in {"coverage_report", "silence_report"}:
             continue
         rows = []
-        for source_row in dataframe.to_dict(orient="records"):
+        # Avoid materializing a second full list of dictionaries for every table.
+        # In the full dataset the event log alone has 120k+ rows with JSON snapshots;
+        # DataFrame.to_dict(orient="records") spikes peak memory by duplicating all
+        # those strings at once. Stream row tuples into the validation context instead.
+        columns = dataframe.columns.tolist()
+        integer_fields = integer_columns.get(key, set())
+        for values in dataframe.itertuples(index=False, name=None):
             normalized_row: dict[str, Any] = {}
-            for field_name, value in source_row.items():
+            for field_name, value in zip(columns, values):
                 try:
                     missing_value = bool(pd.isna(value))
                 except (TypeError, ValueError):
@@ -64,10 +70,10 @@ def _validate_frames(generated: Mapping[str, pd.DataFrame]) -> None:
                     normalized_row[field_name] = None
                 elif hasattr(value, "item"):
                     normalized_value = value.item()
-                    if field_name in integer_columns.get(key, set()) and isinstance(normalized_value, float) and normalized_value.is_integer():
+                    if field_name in integer_fields and isinstance(normalized_value, float) and normalized_value.is_integer():
                         normalized_value = int(normalized_value)
                     normalized_row[field_name] = normalized_value
-                elif field_name in integer_columns.get(key, set()) and isinstance(value, float) and value.is_integer():
+                elif field_name in integer_fields and isinstance(value, float) and value.is_integer():
                     normalized_row[field_name] = int(value)
                 else:
                     normalized_row[field_name] = value
@@ -240,7 +246,19 @@ def generate_dataset(
             raise RuntimeError(f"{entity_name} DataFrame columns differ from schema.py")
 
     if validate:
-        _validate_frames(generated)
+        # For starter-sized data, validate the in-memory records directly as an
+        # early developer feedback loop. On full scale, materializing every pandas
+        # frame as hundreds of thousands of Python dictionaries duplicates a large
+        # part of memory and can take several minutes. The command's mandatory
+        # post-export validation suite checks the exact serialized CSVs, including
+        # all record, FK, lifecycle, ground-truth and leakage rules, so do not repeat
+        # the same record-level pass in memory for large datasets.
+        frame_row_count = sum(
+            len(frame) for name, frame in generated.items()
+            if isinstance(frame, pd.DataFrame) and name not in {"coverage_report", "silence_report", "ground_truth_records", "injection_summary"}
+        )
+        if frame_row_count <= 100_000:
+            _validate_frames(generated)
         actual_events = len(generated["acknowledgements"]) + len(generated["change_requests"])
         expected_events = int(active_scale_config(config)["event_count"])
         if actual_events != expected_events:
@@ -417,8 +435,14 @@ def write_generated_data(
                 def clean_json(raw: Any) -> Any:
                     if pd.isna(raw):
                         return raw
+                    # Most event snapshots are already clean. Avoid reparsing every
+                    # JSON cell in the 120k-row full-scale ledger; only parse rows
+                    # that visibly contain a forbidden target label.
+                    text = str(raw)
+                    if not any(token in text for token in ('"issue_type"', '"ground_truth"', '"boundary"')):
+                        return raw
                     try:
-                        payload = json.loads(str(raw))
+                        payload = json.loads(text)
                     except (ValueError, TypeError):
                         return raw
                     return json.dumps(strip_label_keys(payload), sort_keys=True, separators=(",", ":"))
@@ -611,25 +635,33 @@ def print_generation_summary(frames: Mapping[str, pd.DataFrame], scale: str, see
 def generate_and_write(
     cfg: Mapping[str, Any], scale: str = "starter", seed: int | None = None,
     output_dir: str | Path | None = None, *, validate: bool = True,
+    retain_frames: bool = True, post_validate: bool = True,
 ) -> dict[str, pd.DataFrame]:
-    """Generate the requested dataset and print actual coverage for both scales."""
+    """Generate, reconcile, and validate only the requested scale.
+
+    Earlier versions generated the opposite scale a second time solely to print its
+    coverage report. That multiplied generation time and peak memory for no benefit
+    to the requested dataset. Cross-scale coverage can be inspected by running each
+    scale explicitly.
+    """
     seed_value = int(seed if seed is not None else cfg.get("seed", 20261022))
     frames = generate_dataset(cfg, scale=scale, seed=seed_value, validate=validate)
-    other_scale = "full" if scale == "starter" else "starter"
-    # Build the second scale with identical generator/config code solely to report observed coverage.
-    other_frames = generate_dataset(cfg, scale=other_scale, seed=seed_value, validate=False)
-    coverage = pd.concat([frames["coverage_report"], other_frames["coverage_report"]], ignore_index=True)
-    frames["coverage_report"] = coverage.sort_values(["scale", "category"]).reset_index(drop=True)
     written_to = write_generated_data(frames, cfg, scale, seed_value, output_dir=output_dir)
-    # Generation Step 8: a dataset cannot be shipped unless the full validation suite
-    # finds no unknown violations. Labelled anomalies are reported as EXPECTED_ANOMALY.
-    from supplier_ack.validation.suite import validate_directory
-    validation = validate_directory(written_to)
-    print(f"\nPost-generation validation: {validation['overall_status']}")
-    for check in validation["checks"]:
-        print(f"  {check['check_name']:42s} {check['status']:17s} failures={check['failure_count']:>5,d}")
-    if validation["overall_status"] != "PASS":
-        failures = [f"{c['check_name']}: {c['sample_failures'][:2]}" for c in validation["checks"] if c["status"] == "FAIL"]
-        raise ValueError("post-generation validation failed: " + "; ".join(failures))
+    # Print the generated-state summary while it is still in memory.
     print_generation_summary(frames, scale, seed_value, written_to)
+    if post_validate:
+        # Library callers can request a complete post-generation gate in-process.
+        # The CLI uses a separate validation process after this function returns, so
+        # the generator's large pandas frames are released before CSV validation
+        # loads the same dataset. This keeps full-scale peak memory and GC pauses low.
+        from supplier_ack.validation.suite import validate_directory
+        validation = validate_directory(written_to)
+        print(f"\nPost-generation validation: {validation['overall_status']}")
+        for check in validation["checks"]:
+            print(f"  {check['check_name']:42s} {check['status']:17s} failures={check['failure_count']:>5,d}")
+        if validation["overall_status"] != "PASS":
+            failures = [f"{c['check_name']}: {c['sample_failures'][:2]}" for c in validation["checks"] if c["status"] == "FAIL"]
+            raise ValueError("post-generation validation failed: " + "; ".join(failures))
+    if not retain_frames:
+        return {}
     return frames

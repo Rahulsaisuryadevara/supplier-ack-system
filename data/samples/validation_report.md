@@ -17,6 +17,7 @@
 | 11_downstream_impact | PASS | 86 | 0 | 0 | 0 |
 | 12_acknowledgement_status_consistency | PASS | 214 | 0 | 0 | 0 |
 | 13_ground_truth_coverage | PASS | 145 | 0 | 0 | 0 |
+| 15_committed_file_secret_scan | PASS | 129 | 0 | 0 | 0 |
 | 14_input_label_leakage | PASS | 21 | 0 | 0 | 0 |
 
 ## 2_foreign_key_integrity

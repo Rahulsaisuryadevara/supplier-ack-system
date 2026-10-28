@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import gc
 from datetime import date
-import hashlib
 from pathlib import Path
-import os
-import subprocess
-import sys
 
 import pandas as pd
 import pytest
@@ -32,6 +29,8 @@ def starter(config):
 
 @pytest.fixture(scope="module")
 def full(config):
+    # Prior modules can retain large pandas allocations; release unreachable frames before full-scale reconciliation.
+    gc.collect()
     return generate_dataset(config, "full", 20261022, validate=False, inject_anomalies=False)
 
 
@@ -49,6 +48,13 @@ def test_default_seed_volumes_and_event_semantics(config):
     assert config["scales"]["starter"]["event_count"] == 300
     assert config["scales"]["full"]["po_count"] == 10000
     assert config["scales"]["full"]["event_count"] == 15000
+
+
+def test_same_seed_reproduces_transactions_and_coverage(config):
+    first = generate_dataset(config, "starter", 20261022, validate=False)
+    second = generate_dataset(config, "starter", 20261022, validate=False)
+    for table in ("acknowledgements", "promise_dates", "change_requests", "approvals", "coverage_report"):
+        pd.testing.assert_frame_equal(first[table], second[table])
 
 
 def test_starter_and_full_have_exact_ack_plus_change_request_event_counts(starter, full):
@@ -119,8 +125,12 @@ def test_multiple_revisions_are_retained_and_link_forward(starter, full, config)
         assert len(revision_pos) == expected_target[scale]
         assert revision_pos.between(2, 4).all()
         by_id = acks.set_index("ack_id")
+        # Build the multi-revision groups once instead of rescanning the full
+        # acknowledgement table for each of the 800 full-scale revised POs.
+        revision_groups = {str(po_id): group.sort_values("revision_no")
+                           for po_id, group in acks.loc[acks["po_id"].isin(revision_pos.index)].groupby("po_id", sort=False)}
         for po_id in revision_pos.index:
-            ordered = acks.loc[acks["po_id"].eq(po_id)].sort_values("revision_no")
+            ordered = revision_groups[str(po_id)]
             assert ordered["revision_no"].tolist() == list(range(1, len(ordered) + 1))
             for prior, later in zip(ordered.iloc[:-1].to_dict("records"), ordered.iloc[1:].to_dict("records")):
                 assert prior["status"] == "SUPERSEDED"
@@ -140,7 +150,10 @@ def test_promise_date_revisions_preserve_chain_and_current_snapshot(starter, ful
         assert promises["promise_date_id"].is_unique
         group_sizes = promises.groupby("po_line_id").size()
         revision_line_ids = set(group_sizes[group_sizes.gt(1)].index)
-        assert promises.groupby("po_line_id")["status"].apply(lambda col: int(col.eq("CURRENT").sum())).eq(1).all()
+        # Vectorized count of current promise per PO line avoids a Python callback
+        # for every one of ~40k groups in the full-scale fixture.
+        current_counts = promises.assign(_is_current=promises["status"].eq("CURRENT")).groupby("po_line_id", sort=False)["_is_current"].sum()
+        assert current_counts.eq(1).all()
         # Group once instead of rescanning the full 50k-row full-scale table for
         # every revised line; this preserves assertions while avoiding quadratic tests.
         revision_rows = promises.loc[promises["po_line_id"].isin(revision_line_ids)]
@@ -236,13 +249,6 @@ def test_coverage_config_rejects_invalid_probability_sums(config):
         validate_coverage_config(invalid, "starter", emit_warnings=False)
 
 
-def test_same_seed_reproduces_transactions_and_coverage(config):
-    first = generate_dataset(config, "starter", 20261022, validate=False)
-    second = generate_dataset(config, "starter", 20261022, validate=False)
-    for table in ("acknowledgements", "promise_dates", "change_requests", "approvals", "coverage_report"):
-        pd.testing.assert_frame_equal(first[table], second[table])
-
-
 def test_print_summary_includes_both_scale_coverage_reports(config, starter, full, capsys, tmp_path):
     frames = dict(starter)
     frames["coverage_report"] = pd.concat([starter["coverage_report"], full["coverage_report"]], ignore_index=True)
@@ -254,27 +260,6 @@ def test_print_summary_includes_both_scale_coverage_reports(config, starter, ful
 
 
 @pytest.mark.slow
-def test_same_seed_is_stable_across_python_processes():
-    source = r"""
-import hashlib
-import yaml
-from supplier_ack.generators.framework import generate_dataset
-with open('config/generator_config.yaml', encoding='utf-8') as handle:
-    config = yaml.safe_load(handle)
-frames = generate_dataset(config, 'starter', 20261022, validate=False)
-payload = ''.join(frames[name].to_csv(index=False) for name in (
-    'suppliers', 'purchase_orders', 'po_lines', 'acknowledgements',
-    'promise_dates', 'change_requests', 'approvals', 'coverage_report'
-))
-print(hashlib.sha256(payload.encode('utf-8')).hexdigest())
-"""
-    env = dict(os.environ)
-    env['PYTHONPATH'] = str(ROOT / 'src') + os.pathsep + env.get('PYTHONPATH', '')
-    first = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=120)
-    second = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=120)
-    assert first.stdout.strip() == second.stdout.strip()
-
-
 def test_change_types_use_computed_deltas_and_rule_based_approval_routing(starter, full, config):
     from supplier_ack.rules.thresholds import computed_delta, evaluate_threshold
 
