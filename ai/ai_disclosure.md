@@ -16,7 +16,7 @@ AI generated most of the implementation, including the schema, application code,
   1. Workflow tests used hardcoded `/tmp` paths that worked in the AI's Linux environment but failed on Windows. I isolated the cross-platform compatibility issue and requested a fix.
   2. `matplotlib` and `tabulate` were imported but were missing from the declared project dependencies. I identified the problem during a clean installation and requested that the dependencies be declared.
   3. The `generate` command's default output directory did not match the tests' expectations. I identified the mismatch through local test execution and requested a correction during Prompt 19's Task 0.
-- **Acceptance checks and milestones:** I checked deliverables against the relevant prompt acceptance criteria before proceeding to subsequent phases. I also pushed project milestones to GitHub; I pushed milestones to GitHub at five checkpoints during development.
+- **Acceptance checks and milestones:** I checked deliverables against the relevant prompt acceptance criteria before proceeding to subsequent phases. I pushed milestones to GitHub at checkpoints during development.
 
 ## Where I Relied Most on AI
 

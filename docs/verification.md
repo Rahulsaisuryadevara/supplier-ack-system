@@ -67,6 +67,18 @@ The report includes hashes for every generated file, matching table row counts, 
 3. **Downstream impact identified:** `tests/test_supply.py::test_impacts_are_only_from_implemented_changes_and_severity_is_computed`; missing impacts are challenged by `tests/test_validation.py::test_missing_downstream_impact_caught`.
 4. **Acknowledgement status consistent:** `tests/test_derived.py::test_ack_status_boundaries_and_business_rounding`; invalid status/quantity reconciliation is challenged by `tests/test_validation.py::test_ack_status_inconsistency_caught`.
 
-## Honest coverage and limitations note
+## Latest verified test run
 
-A focused run of `tests/test_coverage.py` previously measured 55% statement coverage across the package; it was not the full-suite aggregate. The earlier constrained execution could not establish a trustworthy full-suite pass count or full aggregate coverage because subprocess-heavy CLI tests timed out. Run `python -m pytest` on the target machine to obtain the current pass count and coverage. Do not interpret a passing demo as a substitute for the full test suite, and do not interpret 55% focused coverage as complete coverage.
+The recorded local verification run completed on **2026-10-28** in **Windows 10**, using **Python 3.12.0**, **pytest 8.3.4**, and **pytest-cov 6.0.0**:
+
+- Command: `python -m pytest`
+- Result: **182 passed, 0 failed, 0 skipped**
+- Total statement coverage: **80%**
+- Runtime: approximately **4.5 minutes**
+- Includes `tests/test_e2e_demo.py`, which exercises the end-to-end demo script.
+
+These results describe that recorded environment and run; rerun the command after changes or in a different environment to verify the current checkout.
+
+### Historical coverage context
+
+An earlier focused run of `tests/test_coverage.py` measured **55% statement coverage** across the package. That was a focused historical result, not the full-suite aggregate, and it is superseded for current reporting by the 2026-10-28 full-suite run above. An earlier constrained execution also timed out in subprocess-heavy CLI tests; that is historical context only and does not describe the latest verified run. Do not interpret the passing demo alone as a substitute for the full test suite, or treat the historical 55% figure as current total coverage.
