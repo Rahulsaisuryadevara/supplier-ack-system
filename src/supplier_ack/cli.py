@@ -171,14 +171,12 @@ def main(argv: Sequence[str] | None = None) -> None:
             cfg = _load_config(config_path, parser)
             if args.scale not in cfg.get("scales", {}):
                 parser.error(f"scale {args.scale!r} is not configured in {config_path}")
-            generate_and_write(cfg, scale=args.scale, seed=args.seed, output_dir=args.output_dir,
+            # Both scales use the same documented default output location.  Resolve
+            # it before generation so the writer and the isolated validator agree.
+            output_dir = args.output_dir or "data/generated"
+            generate_and_write(cfg, scale=args.scale, seed=args.seed, output_dir=output_dir,
                                validate=True, retain_frames=False, post_validate=False)
-            if args.output_dir:
-                generated_path = _path(args.output_dir)
-            else:
-                output_key = "sample_output_dir" if args.scale == "starter" else "output_dir"
-                default_output = cfg.get("workflow", {}).get(output_key, "data/samples" if args.scale == "starter" else "data/generated")
-                generated_path = _path(default_output)
+            generated_path = _path(output_dir)
             print("\nPost-generation validation (isolated process):")
             validation_run = subprocess.run(
                 [sys.executable, "-m", "supplier_ack.cli", "validate", "--dataset", str(generated_path)],

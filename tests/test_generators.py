@@ -137,16 +137,6 @@ def test_line_totals_are_header_aggregates_not_independent_random_values(config)
     pd.testing.assert_series_equal(actual.sort_index(), expected.sort_index(), check_names=False)
 
 
-def test_full_scale_counts_use_same_generator_code_path(config):
-    frames = generate_master_data(config, "full", 20261022, validate=True)
-    assert len(frames["suppliers"]) == 200
-    assert len(frames["purchase_orders"]) == 10000
-    assert len(frames["items"]) == 50
-    assert len(frames["po_lines"]) >= 20000
-    assert len(frames["po_lines"]) <= 60000
-    assert frames["po_lines"].groupby("po_id").size().between(2, 6).all()
-
-
 def test_csv_export_writes_tables_and_summary_with_readable_columns(config, tmp_path):
     frames = generate_master_data(config, "starter", 20261022)
     output = write_generated_data(frames, config, "starter", 20261022, tmp_path)

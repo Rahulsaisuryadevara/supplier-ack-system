@@ -272,7 +272,7 @@
   },
   "dependency_versions": {
     "PyYAML": "6.0.2",
-    "numpy": "2.5.4",
+    "numpy": "2.3.5",
     "pandas": "2.2.3",
     "supplier-ack-system": "0.1.0"
   },
@@ -310,8 +310,8 @@
       "sha256": "baf26b1020d783192eeec19fca577e08aaed82a70232adae76d87456d325acc2"
     },
     "coverage_report.json": {
-      "bytes": 1563,
-      "sha256": "9bc2a42d554c61ca9d84c6467910fcf32f2f1fbe598a45daa9acb71c5948eeda"
+      "bytes": 1489,
+      "sha256": "3d68d6db275512a24ae0d00d99f795091410d69c1e9431d810a6e979454c38e8"
     },
     "csv\\acknowledgement_lines.csv": {
       "bytes": 208845,
@@ -406,16 +406,16 @@
       "sha256": "11dff242534b6c3338d5d252558d36ecf79c4e8b752c7569be03658ceddd6031"
     },
     "generation_summary.json": {
-      "bytes": 5079,
-      "sha256": "b6f0ffa916ab8ca5ee6ad7e058db0fd5bb2e89f930d051e012356d43662c8590"
+      "bytes": 4875,
+      "sha256": "b82cd3068b0f84787188723eb139460e7c8c5f75dd15919ae14320a9f7d2abb1"
     },
     "ground_truth.csv": {
       "bytes": 50140,
       "sha256": "4c0274daeaf49369f48638a203f4120e02ed9c5029979f647fe8cfe80a310b6b"
     },
     "ground_truth.json": {
-      "bytes": 77442,
-      "sha256": "3b5d2c698bf76015a8cb411fc0542fc22a3e8896ab9c03871d2e8d760de3a97e"
+      "bytes": 76186,
+      "sha256": "3af56d0a2a3dd04f0c6c8b1e19849d99525d3a1a1ef573bf0aa1adf5f218b94b"
     },
     "inventory_plans.csv": {
       "bytes": 332495,
@@ -555,7 +555,7 @@
     },
     "sql\\sqlite_validation_summary.json": {
       "bytes": 11122,
-      "sha256": "10673b3430e8d9e8b00bbe9c3fb252bddf3c0286ad13cfbf50accde2276b44d4"
+      "sha256": "90c2bc50b2f5107a9be7d030dab7b17bb4e93dbee216beb128cc23c943608f87"
     },
     "suppliers.csv": {
       "bytes": 9546,
@@ -563,20 +563,20 @@
     },
     "validation_report.md": {
       "bytes": 4071,
-      "sha256": "01c4b2774d37e49da99c043817fd75dd1ebee34f712c82a684824b6c1df07f5f"
+      "sha256": "7e25635c0853d3215fcb2a0d7d21ef477e2cc227ebb9889c538c4a0c0157bcb3"
     },
     "validation_summary.json": {
       "bytes": 11122,
-      "sha256": "10673b3430e8d9e8b00bbe9c3fb252bddf3c0286ad13cfbf50accde2276b44d4"
+      "sha256": "90c2bc50b2f5107a9be7d030dab7b17bb4e93dbee216beb128cc23c943608f87"
     },
     "warehouses.csv": {
       "bytes": 427,
       "sha256": "3a41dcf36a5c89e37d33e786c2b4faedbc2079b4d42dcc4146005e87d35c5bc5"
     }
   },
-  "generation_timestamp": "2026-10-28T15:38:45.051748+00:00",
+  "generation_timestamp": "2026-10-28T18:00:57.574312+00:00",
   "generator_version": "0.1.0",
-  "git_commit": "a9136c4c60c264aec48c5b76a11a2e4b23aedadc",
+  "git_commit": "20475243b0b65f76badeb7b1d0a0b6bcca695383",
   "row_counts": {
     "acknowledgement_lines": 878,
     "acknowledgements": 214,
@@ -600,7 +600,7 @@
   },
   "scale": "starter",
   "secret_scan": {
-    "checked_files": 129,
+    "checked_files": 163,
     "matches": [],
     "status": "PASS"
   },

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Reproducible end-to-end reviewer demo. Run from any directory with bash scripts/demo.sh.
 set -uo pipefail
+# Ensure Unicode arrows and other report characters print consistently on Windows
+# terminals using Git Bash as well as on Unix-like systems.
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
@@ -33,7 +37,7 @@ run_step "Detect labelled anomalies without label leakage" \
   "$PYTHON" -m supplier_ack.cli detect --dataset data/samples --out reports/starter/detection_report.md
 run_step "Build persona reports and data-quality report" \
   "$PYTHON" -m supplier_ack.cli report --dataset data/samples --out reports/starter
-DEMO_DB="$(mktemp "${TMPDIR:-/tmp}/supplier-ack-demo-XXXXXX.db")"
+DEMO_DB="$("$PYTHON" -c 'import tempfile; f=tempfile.NamedTemporaryFile(prefix="supplier-ack-demo-", suffix=".db", delete=False); print(f.name); f.close()')"
 cp data/samples/demo.db "$DEMO_DB"
 trap 'rm -f "$DEMO_DB"' EXIT
 run_step "Process demo live events on a disposable copy of the committed demo database" \

@@ -51,7 +51,7 @@ Reproducibility evidence is available in `docs/reproducibility_report.md`.
 ## Evidence paths
 
 - Dataset root: `C:\Projects\supplier-ack-system\data\samples`
-- Manifest SHA-256: `21a6af27173bca7bd8530e8a371a3740900493595bb5272d62b53504144b8788`
+- Manifest SHA-256: `a211ae0664f7b791a7f2a67269b97a4697215ecffdf4fcd7937bbfaefe95801b`
 - Validation: `validation_summary.json`, `validation_report.md`
 - Reconciliation: generator post-step and `generation_summary.json`
 - Ground truth: `ground_truth.csv`, `ground_truth.json`

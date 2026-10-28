@@ -178,3 +178,35 @@ def test_validation_collects_errors_instead_of_crashing_on_bad_types():
     assert errors
     assert any("ack_id" in error for error in errors)
     assert any("revision_no" in error for error in errors)
+
+
+def test_documented_field_tables_parse_to_schema_fields():
+    """Every field row documented in Markdown must exist in the schema source."""
+    import re
+    from pathlib import Path
+    from supplier_ack.schema import ENTITIES
+
+    dictionary = Path(__file__).resolve().parents[1] / "docs" / "data_dictionary.md"
+    text = dictionary.read_text(encoding="utf-8")
+    current_entity = None
+    documented = {}
+    for line in text.splitlines():
+        heading = re.fullmatch(r"#{2,6}\s+(.+?)\s*", line)
+        if heading:
+            name = heading.group(1)
+            current_entity = name if name in ENTITIES else None
+            if current_entity:
+                documented.setdefault(current_entity, set())
+            continue
+        if current_entity and line.startswith("|") and not re.match(r"^\|\s*:?-{3,}", line):
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if cells and re.fullmatch(r"`[a-z][a-z0-9_]*`", cells[0]):
+                documented[current_entity].add(cells[0].strip("`"))
+
+    assert set(documented) == set(ENTITIES)
+    for entity_name, entity in ENTITIES.items():
+        expected = {field.name for field in entity.fields}
+        assert documented[entity_name] == expected, (
+            entity_name, sorted(expected - documented[entity_name]),
+            sorted(documented[entity_name] - expected)
+        )

@@ -316,3 +316,23 @@ def test_every_factory_id_is_accepted_by_its_entity_schema_validator():
         entity = ENTITIES[entity_name]
         field = next(field for field in entity.fields if field.name == entity.primary_key)
         assert field.validator(identifier, {field.name: identifier}, {}, field) is None, entity_name
+
+
+def test_all_ten_entity_id_patterns_are_explicit_and_non_overlapping():
+    expected = {
+        "Supplier", "PurchaseOrder", "POLine", "Acknowledgement", "PromiseDate",
+        "ChangeRequest", "Approval", "Notification", "InventoryPlan", "ProductionOrder",
+    }
+    assert set(ID_PATTERNS) == expected
+    examples = {
+        "Supplier": "SUP-000001", "PurchaseOrder": "PO-2026-000001",
+        "POLine": "PO-2026-000001-L01", "Acknowledgement": "ACK-PO-2026-000001-01",
+        "PromiseDate": "PD-ACK-PO-2026-000001-01-01",
+        "ChangeRequest": "CHG-PO-2026-000001-000001",
+        "Approval": "APR-CHG-PO-2026-000001-000001-01",
+        "Notification": "NOT-2026-000001", "InventoryPlan": "IP-PO-2026-000001-L01-01",
+        "ProductionOrder": "PRO-2026-000001",
+    }
+    for entity, value in examples.items():
+        assert matches_id_format(entity, value)
+        assert not matches_id_format(entity, value + "X")

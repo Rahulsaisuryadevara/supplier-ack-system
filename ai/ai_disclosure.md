@@ -1,21 +1,35 @@
-# AI assistance disclosure
+# AI-Use Disclosure
 
-## Where AI helped
+This project was developed with substantial AI assistance. This document describes how AI was used, what I personally contributed, and the areas where I relied most heavily on AI.
 
-AI assistance was used to bootstrap repository structure, write the initial configuration and documentation, draft the package metadata and CLI entry point, and initialize this prompt-history file.
+## How AI Was Used
 
-## Candidate review and validation
+I planned the project as a sequence of 21 staged prompts, with acceptance checklists, required commit messages, and verification steps. The work was carried out with an AI coding assistant across two conversations: the first reached its context limit, and a context handover continued the work. A second AI assistant (Vibe) helped me plan the prompt sequence and structure the verification routine.
 
-The candidate should independently review all generated code, confirm policy assumptions against the challenge brief, install the project in a clean Python 3.11+ environment, run the test suite, inspect generated sample data, and verify the end-to-end workflow before submission. This disclosure distinguishes generated scaffolding from work that has been independently reviewed and validated.
+AI generated most of the implementation, including the schema, application code, tests, and documentation. I directed the development through the staged requirements, evaluated the outputs, and decided when to accept, fix, or rework them.
 
-## Relational schema and event history update
+## What I Personally Contributed
 
-AI assistance also drafted the normalized SQLite relational schema, bridge tables, typed event-log target references, audit triggers, lifecycle transition tables, and anomaly-integrity documentation. Database execution and regression tests were run locally; the candidate should still review business policies and test representative real workflow scenarios before submission.
+- **Prompt planning and requirements:** I developed and iterated the staged prompt plan, including architecture requirements, ID conventions, threshold values, acceptance criteria, and the intended commit sequence. The recorded prompts are documented in `ai/prompt_history.md`.
+- **Local verification on Windows:** I installed the project dependencies, ran the test suite, exercised the demonstration script, checked reproducibility, and ran the CLI doctor check. The latest recorded test run completed with 182 passing tests, no failures, no skips, and 80% coverage. I ran scripts/demo.sh end-to-end on my machine; all six stages passed.
+- **Identifying and correcting integration issues:** I found issues by running the project in my local Windows environment and requested targeted fixes:
+  1. Workflow tests used hardcoded `/tmp` paths that worked in the AI's Linux environment but failed on Windows. I isolated the cross-platform compatibility issue and requested a fix.
+  2. `matplotlib` and `tabulate` were imported but were missing from the declared project dependencies. I identified the problem during a clean installation and requested that the dependencies be declared.
+  3. The `generate` command's default output directory did not match the tests' expectations. I identified the mismatch through local test execution and requested a correction during Prompt 19's Task 0.
+- **Acceptance checks and milestones:** I checked deliverables against the relevant prompt acceptance criteria before proceeding to subsequent phases. I also pushed project milestones to GitHub; I pushed milestones to GitHub at five checkpoints during development.
 
-## Deterministic ID engine update
+## Where I Relied Most on AI
 
-AI assistance implemented `IDFactory`, its fixed-format global and parent-scoped counters, JSON state snapshot/restore, input validation, counter exhaustion guards, and the `tests/test_ids.py` suite. The current local verification run passed 44 tests and exercised the SQLite schema and CLI. The candidate should review the fixed 2026 challenge-year decision, the two-digit scoped-counter limits, and the selected full-parent Approval ID format.
+The schema and DDL details, generator implementation, workflow engine internals, and breadth of the test suite were primarily AI-generated. My review of these areas is not as exhaustive as the size of the implementation might suggest.
 
-## Seeded master-data generator update
+I do not claim production-grade correctness or that the encoded business policies are universally valid. This project uses synthetic data, and its tests establish behavior only for the paths and conditions they exercise.
 
-AI assistance implemented the injected seeded NumPy RNG pipeline, IDFactory-driven Supplier/PurchaseOrder/POLine generation, synthetic item/carrier/warehouse masters, actor roster, CSV/summary exports, and CLI scale/seed options. Distribution parameters and rationale are documented in `docs/decisions.md`. Automated tests cover deterministic generation, valid parent relationships, schema-column matching, quantity/price arithmetic, generation-scale counts, and the prohibition on global RNG use. Local verification passed 56 tests and the full-scale in-memory data passed schema validation. The candidate should review the distributions and output samples, and repeat installation and verification in a networked clean environment.
+## Ownership and Technical Understanding
+
+My role included defining requirements, directing implementation, checking outputs, identifying environment and integration issues, and verifying the resulting behavior. I can explain the core rules and design choices, including the price tolerance of ±5%, the seven-day delivery slip, the 10% quantity-shortfall threshold, approval-gated plan updates, the four labelled anomaly classes, and the use of SQLite and seeded deterministic generation.
+
+The detailed decisions and verification evidence are documented in `docs/decisions.md` and `docs/verification.md`, respectively.
+
+## External Code and Licensing
+
+I did not intentionally include a complete external solution or copied implementation. The project's declared dependencies are listed in `pyproject.toml` and remain subject to their respective licenses. The project code is released under the MIT license (see LICENSE).

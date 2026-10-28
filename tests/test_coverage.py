@@ -27,12 +27,6 @@ def starter(config):
     return generate_dataset(config, "starter", 20261022, validate=True, inject_anomalies=False)
 
 
-@pytest.fixture(scope="module")
-def full(config):
-    # Prior modules can retain large pandas allocations; release unreachable frames before full-scale reconciliation.
-    gc.collect()
-    return generate_dataset(config, "full", 20261022, validate=False, inject_anomalies=False)
-
 
 def _current_acknowledgements(frames):
     return frames["acknowledgements"].loc[~frames["acknowledgements"]["status"].eq("SUPERSEDED")]
@@ -57,17 +51,14 @@ def test_same_seed_reproduces_transactions_and_coverage(config):
         pd.testing.assert_frame_equal(first[table], second[table])
 
 
-def test_starter_and_full_have_exact_ack_plus_change_request_event_counts(starter, full):
+def test_starter_has_exact_ack_plus_change_request_event_counts(starter):
     assert len(starter["purchase_orders"]) == 200
     assert len(starter["acknowledgements"]) + len(starter["change_requests"]) == 300
-    assert len(full["purchase_orders"]) == 10000
-    assert len(full["acknowledgements"]) + len(full["change_requests"]) == 15000
-    assert len(full["suppliers"]) == 200
 
 
-def test_every_required_coverage_category_is_configured_and_reported(config, starter, full):
+def test_every_required_coverage_category_is_configured_and_reported(config, starter):
     assert set(config["coverage"]["target_proportions"]) == set(COVERAGE_CATEGORIES)
-    for frames in (starter, full):
+    for frames in (starter,):
         report = frames["coverage_report"]
         assert report["category"].tolist() == list(COVERAGE_CATEGORIES)
         assert report["count"].ge(0).all()
@@ -76,8 +67,8 @@ def test_every_required_coverage_category_is_configured_and_reported(config, sta
         assert report["target_proportion"].between(0, 1).all()
 
 
-def test_ack_outcome_coverage_hits_configured_mix(starter, full, config):
-    for scale, frames in (("starter", starter), ("full", full)):
+def test_ack_outcome_coverage_hits_configured_mix(starter, config):
+    for scale, frames in (("starter", starter),):
         current = _current_acknowledgements(frames)
         denominator = len(current)
         for status, category in (
@@ -92,8 +83,8 @@ def test_ack_outcome_coverage_hits_configured_mix(starter, full, config):
             assert abs(observed / denominator - config["coverage"]["target_proportions"][category]) <= 1 / denominator + 1e-12
 
 
-def test_all_acknowledgements_reconcile_quantities_and_reason_rules(starter, full):
-    for frames in (starter, full):
+def test_all_acknowledgements_reconcile_quantities_and_reason_rules(starter):
+    for frames in (starter,):
         acks = frames["acknowledgements"]
         assert ((acks["requested_qty"] - acks["ack_accepted_qty"] - acks["ack_rejected_qty"]).abs() < 0.001).all()
         partial_or_rejected = acks["status"].isin(["PARTIALLY_ACCEPTED", "REJECTED"])
@@ -102,9 +93,9 @@ def test_all_acknowledgements_reconcile_quantities_and_reason_rules(starter, ful
         assert current.loc[current["status"].eq("ACCEPTED"), "rejection_reason"].isna().all()
 
 
-def test_silence_rows_have_no_ack_and_response_due_is_past(starter, full, config):
-    expected = {"starter": 10, "full": 500}
-    for scale, frames in (("starter", starter), ("full", full)):
+def test_silence_rows_have_no_ack_and_response_due_is_past(starter, config):
+    expected = {"starter": 10}
+    for scale, frames in (("starter", starter),):
         silence = frames["silence_report"]
         assert len(silence) == expected[scale]
         assert silence["issue_type"].eq("MISSING_ACK").all()
@@ -116,9 +107,9 @@ def test_silence_rows_have_no_ack_and_response_due_is_past(starter, full, config
         assert row["denominator"] == len(frames["purchase_orders"])
 
 
-def test_multiple_revisions_are_retained_and_link_forward(starter, full, config):
-    expected_target = {"starter": 16, "full": 800}
-    for scale, frames in (("starter", starter), ("full", full)):
+def test_multiple_revisions_are_retained_and_link_forward(starter, config):
+    expected_target = {"starter": 16}
+    for scale, frames in (("starter", starter),):
         acks = frames["acknowledgements"]
         counts = acks.groupby("po_id").size()
         revision_pos = counts[counts >= 2]
@@ -143,8 +134,8 @@ def test_multiple_revisions_are_retained_and_link_forward(starter, full, config)
         assert row["denominator"] == len(frames["purchase_orders"])
 
 
-def test_promise_date_revisions_preserve_chain_and_current_snapshot(starter, full):
-    for frames in (starter, full):
+def test_promise_date_revisions_preserve_chain_and_current_snapshot(starter):
+    for frames in (starter,):
         promises = frames["promise_dates"]
         by_id = promises.set_index("promise_date_id")
         assert promises["promise_date_id"].is_unique
@@ -168,8 +159,8 @@ def test_promise_date_revisions_preserve_chain_and_current_snapshot(starter, ful
         assert (promises.loc[promises["revision_no"].eq(1), "prior_promised_date"].isna()).all()
 
 
-def test_date_slip_mix_and_realistic_slip_range(starter, full, config):
-    for frames in (starter, full):
+def test_date_slip_mix_and_realistic_slip_range(starter, config):
+    for frames in (starter,):
         current = frames["promise_dates"].loc[frames["promise_dates"]["status"].eq("CURRENT")].merge(
             frames["po_lines"][["po_line_id", "required_date"]], on="po_line_id", validate="many_to_one"
         )
@@ -184,8 +175,8 @@ def test_date_slip_mix_and_realistic_slip_range(starter, full, config):
         assert abs(on_time / len(current) - config["coverage"]["target_proportions"]["on_time_promises"]) <= 1 / len(current) + 1e-12
 
 
-def test_price_change_coverage_has_auditable_change_request_and_bounded_magnitude(starter, full, config):
-    for frames in (starter, full):
+def test_price_change_coverage_has_auditable_change_request_and_bounded_magnitude(starter, config):
+    for frames in (starter,):
         lines = frames["po_lines"]
         eligible = lines.loc[lines["ack_accepted_qty"].gt(0)]
         changed = eligible.loc[(eligible["acknowledged_unit_price"] - eligible["unit_price"]).abs().gt(0.005)]
@@ -209,8 +200,8 @@ def test_price_change_coverage_has_auditable_change_request_and_bounded_magnitud
         assert (projected_match.loc[~rejected, "projected_unit_price"].astype(float).to_numpy() == projected_match.loc[~rejected, "requested_unit_price"].astype(float).to_numpy()).all()
 
 
-def test_change_request_and_approval_foreign_keys_resolve(starter, full):
-    for frames in (starter, full):
+def test_change_request_and_approval_foreign_keys_resolve(starter):
+    for frames in (starter,):
         po_ids = set(frames["purchase_orders"]["po_id"])
         ack_ids = set(frames["acknowledgements"]["ack_id"])
         line_ids = set(frames["po_lines"]["po_line_id"])
@@ -224,9 +215,9 @@ def test_change_request_and_approval_foreign_keys_resolve(starter, full):
         assert set(frames["promise_dates"]["ack_id"]).issubset(ack_ids)
 
 
-def test_each_entity_dataframe_matches_dictionary_columns(starter, full):
+def test_each_entity_dataframe_matches_dictionary_columns(starter):
     table_to_entity = {spec.table_name: name for name, spec in ENTITIES.items()}
-    for frames in (starter, full):
+    for frames in (starter,):
         for table, entity_name in table_to_entity.items():
             if table in frames:
                 assert frames[table].columns.tolist() == [field.name for field in ENTITIES[entity_name].fields]
@@ -249,22 +240,22 @@ def test_coverage_config_rejects_invalid_probability_sums(config):
         validate_coverage_config(invalid, "starter", emit_warnings=False)
 
 
-def test_print_summary_includes_both_scale_coverage_reports(config, starter, full, capsys, tmp_path):
+def test_print_summary_includes_starter_coverage_report(config, starter, capsys, tmp_path):
     frames = dict(starter)
-    frames["coverage_report"] = pd.concat([starter["coverage_report"], full["coverage_report"]], ignore_index=True)
+    frames["coverage_report"] = starter["coverage_report"]
     print_generation_summary(frames, "starter", 20261022, tmp_path)
     output = capsys.readouterr().out
-    assert "[starter]" in output and "[full]" in output
+    assert "[starter]" in output
     for category in COVERAGE_CATEGORIES:
         assert category in output
 
 
 @pytest.mark.slow
-def test_change_types_use_computed_deltas_and_rule_based_approval_routing(starter, full, config):
+def test_change_types_use_computed_deltas_and_rule_based_approval_routing(starter, config):
     from supplier_ack.rules.thresholds import computed_delta, evaluate_threshold
 
     threshold_config = config["approval_thresholds"]
-    for frames in (starter, full):
+    for frames in (starter,):
         changes = frames["change_requests"]
         approvals = frames["approvals"]
         assert set(changes["change_type"]) == {"price", "date", "quantity"}

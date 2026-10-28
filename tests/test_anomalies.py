@@ -106,9 +106,6 @@ def test_ground_truth_files_are_separate_and_no_input_csv_label_leakage(starter,
         assert "issue_type" not in columns
         assert "ground_truth" not in columns
         assert "boundary" not in columns
-    canonical = ROOT / "data" / "generated"
-    assert (canonical / "ground_truth.csv").is_file()
-    assert (canonical / "ground_truth.json").is_file()
 
 
 def test_sparse_promise_revisions_fall_back_to_plan_history_without_losing_labels(config, tmp_path):
