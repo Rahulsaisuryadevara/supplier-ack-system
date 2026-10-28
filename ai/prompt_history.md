@@ -593,3 +593,68 @@ ACCEPTANCE CHECKLIST:
 [ ] Each anomaly documented in docs/decisions.md
 
 COMMIT MESSAGE: "feat: labelled anomaly injection and separated ground-truth files with leakage checks"
+
+---
+
+## Generation Step 9 — Export pipeline (2026-10-28)
+
+Continue the supplier-ack-system project. New task: implement the export pipeline (Generation Step 9 of the problem statement).
+
+EXPORT FORMATS — from one dataset, produce all three:
+1. CSV: one file per entity (10+ files including bridge tables and the event log) in data/generated/csv/, plus ground_truth.csv. UTF-8, header row, ids byte-identical across files.
+2. JSON: data/generated/json/ — one file per entity as an array of records, PLUS a master manifest (see below), plus ground_truth.json
+3. SQL seed data: data/generated/sql/seed.sql — CREATE TABLE statements (with FK constraints) + INSERT statements for every table, loadable into a fresh SQLite DB in one command; plus a .db file produced directly. Verify by loading seed.sql into an empty SQLite database and running the validation suite against it.
+
+ALSO EXPORT (the documentation bundle):
+- README.md updates: how to run the generator (exact command with --seed 20261022 --scale full), expected runtimes, disk footprint, how to validate, how to regenerate
+- docs/schema.md and docs/data_dictionary.md refreshed to final state
+- data/generated/manifest.json — the SOURCE MANIFEST: generator version, git commit hash, seed, scale, config snapshot, per-table row counts, per-file SHA-256 checksums, generation timestamp, dependency versions
+- validation_summary.json and validation_report.md from Prompt 12
+- A starter-dataset bundle in data/samples/ small enough to commit to git (so reviewers can inspect data without regenerating)
+
+PUBLIC DATA GUIDANCE / LAWFUL USE:
+- State that all data is fully synthetic; no external datasets are used
+- Document the schema-inspiration basis (standard procurement/acknowledgement concepts) without copying any proprietary schema
+- Include a section: "If external data were used, we would record: source URL, dataset/version, retrieval date, license/terms, attribution, transformations, fields discarded" — with the rule that only legally redistributable data would be used and no confidential/personal information is included (supplier and actor names are synthetic; state this explicitly)
+- Confirm the repo contains no secrets or credentials (add a check to the validation suite: scan for API-key-looking strings in committed files)
+
+CLI: python -m supplier_ack.cli export --dataset data/generated/ --formats csv,json,sql
+
+ACCEPTANCE CHECKLIST:
+[ ] CSV, JSON, and SQL exports all generated from the same dataset with consistent ids
+[ ] seed.sql loads into an empty SQLite DB which passes the validation suite
+[ ] manifest.json with row counts + SHA-256 checksums + seed + config snapshot
+[ ] README documents the exact regeneration command
+[ ] docs/provenance.md covers the lawful-use guidance fully
+[ ] Starter bundle committed under data/samples/
+[ ] Secret-scan check passes
+
+COMMIT MESSAGE: "feat: CSV/JSON/SQL export pipeline, source manifest, and provenance documentation"
+
+---
+
+## Generation Step 10 — Reproducibility demonstration (2026-10-28)
+
+Continue the supplier-ack-system project. New task: implement the reproducibility demonstration (Generation Step 10 of the problem statement): "Regenerate twice with the same seed and compare row counts/checksums to demonstrate reproducibility."
+
+TASK 1 — Add a CLI command: python -m supplier_ack.cli verify-reproducibility --seed 20261022 --scale starter
+It must:
+1. Generate the dataset into run1/.
+2. Generate it AGAIN into run2/ with the same seed and config.
+3. Compare per-table row counts, per-file SHA-256 checksums, per-column value checksums (e.g., hash of sorted values), summary statistics (means to 10 decimal places).
+4. Also demonstrate the COUNTER-PROPERTY: generate run3/ with a different seed and show checksums DIFFER (proves the seed actually drives the output, not accidentally-cached results).
+5. Emit docs/reproducibility_report.md with a table: table_name, rows_run1, rows_run2, checksum_run1, checksum_run2, match YES/NO, plus the run3 divergence table, plus exact commands used and environment (Python version, dependency versions).
+
+TASK 2 — Also verify ID determinism specifically: same seed → same PO-2026-000001 has identical content in both runs; different seed → different content. Show 3 concrete examples in the report.
+
+TASK 3 — Register reproducibility as a pytest test (marked slow) that runs the starter-scale double-generation and asserts byte-identical outputs.
+
+TASK 4 — Ensure the event log is also deterministic: same event ids, same timestamps, same ordering. (If you use timestamps: derive them deterministically from the seeded rng and the entity dates — NOT from wall-clock time. Wall-clock may appear ONLY in the manifest generation_timestamp, never inside the data.)
+
+Run the full-scale double-generation too and record results in docs/reproducibility_report.md.
+
+Acceptance: starter CLI test; same-seed byte-identical outputs; different-seed output differs; complete report; no wall-clock time in data; full-scale reproducibility demonstrated.
+
+Also diagnose and fix the previous timeout in the coverage test module's subprocess/reproducibility section.
+
+COMMIT MESSAGE: "feat: reproducibility harness with double-generation checksum comparison and report"

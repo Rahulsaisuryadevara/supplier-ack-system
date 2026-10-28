@@ -476,7 +476,7 @@ def generate_supply_workflow(
             new_start = _day(order["planned_start_date"])
             if impact_type == "date_conflict":
                 # The new start is tied to observed projected receipt, plus one calendar day.
-                new_start = max(new_start, new_date + timedelta(days=1))
+                new_start = min(max(new_start, new_date + timedelta(days=1)), required_by)
             old_state = {
                 "status": order["status"], "planned_start_date": order["planned_start_date"],
                 "projected_qty": old_qty, "projected_delivery_date": _iso(old_date),

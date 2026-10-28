@@ -20,3 +20,6 @@ data/generated/*
 *.sqlite3
 *.log
 .env
+
+# Local reproducibility run artifacts
+.reproducibility/

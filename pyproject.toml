@@ -31,3 +31,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+  "slow: seeded full-data or subprocess reproducibility test",
+]

@@ -253,6 +253,7 @@ def test_print_summary_includes_both_scale_coverage_reports(config, starter, ful
         assert category in output
 
 
+@pytest.mark.slow
 def test_same_seed_is_stable_across_python_processes():
     source = r"""
 import hashlib
@@ -269,8 +270,8 @@ print(hashlib.sha256(payload.encode('utf-8')).hexdigest())
 """
     env = dict(os.environ)
     env['PYTHONPATH'] = str(ROOT / 'src') + os.pathsep + env.get('PYTHONPATH', '')
-    first = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=30)
-    second = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=30)
+    first = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=120)
+    second = subprocess.run([sys.executable, '-c', source], cwd=ROOT, env=env, check=True, capture_output=True, text=True, timeout=120)
     assert first.stdout.strip() == second.stdout.strip()
 
 

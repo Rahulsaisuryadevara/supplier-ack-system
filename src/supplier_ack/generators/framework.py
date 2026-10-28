@@ -377,8 +377,14 @@ def write_generated_data(
     scale: str,
     seed: int,
     output_dir: str | Path | None = None,
+    *,
+    publish_ground_truth: bool = True,
 ) -> Path:
-    """Write generated tables, silence report, coverage report, and summary JSON."""
+    """Write generated tables, silence report, coverage report, and summary JSON.
+
+    ``publish_ground_truth=False`` isolates reproducibility runs and tests from the
+    canonical ``data/generated`` target file while retaining ground truth locally.
+    """
     if output_dir is None:
         if scale == "starter":
             output_dir = get_config(cfg, "workflow", "sample_output_dir", default="data/samples")
@@ -432,7 +438,7 @@ def write_generated_data(
     canonical_truth_dir.mkdir(parents=True, exist_ok=True)
     # The canonical target file represents the full-scale evaluation labels.
     # Starter exports and tests writing to temporary directories must never replace it.
-    if canonical_truth_dir.resolve() != target.resolve() and scale == "full":
+    if publish_ground_truth and canonical_truth_dir.resolve() != target.resolve() and scale == "full":
         truth.to_csv(canonical_truth_dir / "ground_truth.csv", index=False, encoding="utf-8", lineterminator="\n")
         (canonical_truth_dir / "ground_truth.json").write_text(truth_json, encoding="utf-8")
 
@@ -615,5 +621,15 @@ def generate_and_write(
     coverage = pd.concat([frames["coverage_report"], other_frames["coverage_report"]], ignore_index=True)
     frames["coverage_report"] = coverage.sort_values(["scale", "category"]).reset_index(drop=True)
     written_to = write_generated_data(frames, cfg, scale, seed_value, output_dir=output_dir)
+    # Generation Step 8: a dataset cannot be shipped unless the full validation suite
+    # finds no unknown violations. Labelled anomalies are reported as EXPECTED_ANOMALY.
+    from supplier_ack.validation.suite import validate_directory
+    validation = validate_directory(written_to)
+    print(f"\nPost-generation validation: {validation['overall_status']}")
+    for check in validation["checks"]:
+        print(f"  {check['check_name']:42s} {check['status']:17s} failures={check['failure_count']:>5,d}")
+    if validation["overall_status"] != "PASS":
+        failures = [f"{c['check_name']}: {c['sample_failures'][:2]}" for c in validation["checks"] if c["status"] == "FAIL"]
+        raise ValueError("post-generation validation failed: " + "; ".join(failures))
     print_generation_summary(frames, scale, seed_value, written_to)
     return frames

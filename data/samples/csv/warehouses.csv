@@ -1,0 +1,5 @@
+warehouse_id,warehouse_name,site_code,timezone,is_active,created_at
+WH-0001,Ahmedabad Parts Warehouse,AMD-WH-01-01,Asia/Kolkata,1,2025-12-01T08:00:00+00:00
+WH-0002,Pune Regional Warehouse,PUN-WH-01-02,Asia/Kolkata,1,2025-12-01T08:00:00+00:00
+WH-0003,Mumbai Western Distribution Centre,BOM-DC-01-03,Asia/Kolkata,1,2025-12-01T08:00:00+00:00
+WH-0004,Bengaluru Components Hub,BLR-HUB-01-04,Asia/Kolkata,1,2025-12-01T08:00:00+00:00

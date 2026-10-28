@@ -1,0 +1,25 @@
+{
+  "row_counts": {
+    "suppliers": 40,
+    "purchase_orders": 200,
+    "po_lines": 791,
+    "acknowledgements": 214,
+    "acknowledgement_lines": 878,
+    "promise_dates": 674,
+    "change_requests": 86,
+    "approvals": 128,
+    "inventory_plans": 1114,
+    "production_orders": 100,
+    "production_order_line": 100,
+    "production_order_impact": 15,
+    "notifications": 549,
+    "notification_recipient": 887,
+    "entity_event": 2453,
+    "actors": 55,
+    "carriers": 10,
+    "warehouses": 4,
+    "items": 50
+  },
+  "seed": 20261022,
+  "scale": "starter"
+}

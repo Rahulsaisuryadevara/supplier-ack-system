@@ -87,3 +87,46 @@ supplier-ack-system/
 - **SQLite:** free, built-in, serverless persistence with enforced foreign keys; concurrent writes are more limited than a client/server database.
 - **argparse:** built-in CLI with no extra runtime framework; more manual than a dedicated CLI package but keeps dependencies small.
 - **pytest:** readable regression tests for ID formats, schema constraints, and generation invariants; tests must evolve with business rules.
+
+## Dataset validation (Generation Step 8)
+
+Run the 14-group validator against exported CSVs and the separated ground-truth file:
+
+```bash
+python -m supplier_ack.cli validate --dataset data/generated/
+```
+
+The command writes `validation_summary.json` and `validation_report.md` into the dataset directory. Known violations that match a labelled ground-truth anomaly are reported as `EXPECTED_ANOMALY`; unlabelled/unknown violations are `FAIL`. Overall status is `PASS` when there are no unknown violations. `generate` invokes this validator after exporting and fails loudly if an unknown violation is found.
+
+Validation groups cover primary keys, foreign keys, allowed enums, date ordering, arithmetic reconciliation, lifecycle transitions/current state, duplicates, ID conventions, revision history, approval-before-apply, downstream impacts, acknowledgement status consistency, ground-truth coverage, and input label leakage.
+
+## Export, manifest, and reviewer bundle (Generation Step 9)
+
+Export the canonical full-scale dataset into CSV, JSON, and SQLite SQL seed formats:
+
+```bash
+python -m supplier_ack.cli generate --config config/generator_config.yaml --seed 20261022 --scale full
+python -m supplier_ack.cli export --dataset data/generated/ --formats csv,json,sql
+python -m supplier_ack.cli validate --dataset data/generated/
+```
+
+`export` reads the same flat source CSV tables and writes one CSV per table under `data/generated/csv/`, JSON arrays under `data/generated/json/`, and `data/generated/sql/seed.sql` plus `seed.db`. The SQL file is a standalone SQLite script; it declares primary/foreign keys and temporarily disables FK enforcement while loading so deliberately labelled anomaly rows remain auditable. You can load it into an empty database with `sqlite3 fresh.db < data/generated/sql/seed.sql`. The exporter loads that exact script into a fresh SQLite database, checks table row counts, and runs the same ground-truth-aware validation suite against the imported rows. Expected labelled violations remain `EXPECTED_ANOMALY`; unknown violations fail the export.
+
+`data/generated/manifest.json` records generator version, current git commit, seed/scale, config snapshot, per-table row counts, dependency versions, UTC generation timestamp, secret-scan result, and SHA-256 checksums and byte sizes for files present at export time (the manifest does not checksum itself). `validation_summary.json` and `validation_report.md` are produced by the validation step. A compact, reviewable starter dataset and validation outputs are tracked under `data/samples/`.
+
+### Expected runtime and disk footprint
+
+On a typical developer workstation, starter generation and validation generally take under a minute. Full-scale generation plus validation can take roughly 1–3 minutes depending on CPU and disk speed; export to all three formats is I/O-heavy and can take several additional minutes. Full-scale flat CSVs are approximately 130–150 MB in this environment; JSON and SQL seed exports and the SQLite database can add several hundred MB. Allow at least 1 GB free disk space for a full-scale all-format export. Actual timings and checksums are captured in the manifest for each run.
+
+To reproduce from a clean checkout, install the project (`python -m pip install -e '.[dev]'`), then run the three commands above with the fixed seed and scale. The starter bundle can be inspected without running the full generator.
+
+
+## Reproducibility demonstration
+
+Run the seeded reproduction harness (this also regenerates the full-scale pair unless explicitly skipped):
+
+```bash
+python -m supplier_ack.cli verify-reproducibility --seed 20261022 --scale starter
+```
+
+The harness writes isolated CSV run snapshots under `.reproducibility/`, compares table row counts, every output file's SHA-256, sorted per-column value hashes, and numeric means to ten decimal places. It also checks deterministic IDs and event-log IDs/timestamps/order, then generates run 3 with a different seed to prove that the seed changes entity content. The report is written to `docs/reproducibility_report.md`. The generation API derives event timestamps from seeded entity dates; it does not use wall-clock timestamps in generated records. Use `--skip-full-scale` only for a focused local/test run.

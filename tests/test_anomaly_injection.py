@@ -109,3 +109,21 @@ def test_ground_truth_files_are_separate_and_no_input_csv_label_leakage(starter,
     canonical = ROOT / "data" / "generated"
     assert (canonical / "ground_truth.csv").is_file()
     assert (canonical / "ground_truth.json").is_file()
+
+
+def test_sparse_promise_revisions_fall_back_to_plan_history_without_losing_labels(config, tmp_path):
+    """A seed with fewer promise revision pairs still injects the configured stale rows."""
+    from supplier_ack.validation.suite import validate_directory
+
+    seed = 20261023
+    frames = generate_dataset(config, "starter", seed, validate=True, inject_anomalies=True)
+    stale = frames["ground_truth_records"].loc[
+        frames["ground_truth_records"]["issue_type"].eq("STALE_REVISION_OVERWRITE")
+    ]
+    assert len(stale) == config["anomaly_injection"]["counts"]["starter"]["STALE_REVISION_OVERWRITE"]
+    assert set(stale["record_type"]).issubset({"PromiseDate", "InventoryPlan"})
+    assert "InventoryPlan" in set(stale["record_type"])
+
+    write_generated_data(frames, config, "starter", seed, output_dir=tmp_path, publish_ground_truth=False)
+    result = validate_directory(tmp_path)
+    assert result["overall_status"] == "PASS"

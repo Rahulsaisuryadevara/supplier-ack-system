@@ -1,0 +1,340 @@
+{
+  "checks": [
+    {
+      "check_name": "1_primary_key_uniqueness",
+      "checked_rows": 7361,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "2_foreign_key_integrity",
+      "checked_rows": 33807,
+      "expected_anomaly_count": 5,
+      "failure_count": 5,
+      "sample_failures": [
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "ACK line belongs to a different PO",
+          "record_id": "AL-EDGE-0020261022-000001",
+          "related_ids": [
+            "PO-2026-000106-L03",
+            "PO-2026-000112"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "po_line_id references missing po_lines PO-2026-999999-L99",
+          "record_id": "AL-EDGE-0020261022-000002",
+          "related_ids": [
+            "PO-2026-999999-L99"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "ACK line belongs to a different PO",
+          "record_id": "AL-EDGE-0020261022-000003",
+          "related_ids": [
+            "PO-2026-000047-L02",
+            "PO-2026-000109"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "po_line_id references missing po_lines PO-2026-999999-L99",
+          "record_id": "AL-EDGE-0020261022-000004",
+          "related_ids": [
+            "PO-2026-999999-L99"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "ACK line belongs to a different PO",
+          "record_id": "AL-EDGE-0020261022-000005",
+          "related_ids": [
+            "PO-2026-000146-L02",
+            "PO-2026-000076"
+          ],
+          "table": "acknowledgement_lines"
+        }
+      ],
+      "status": "EXPECTED_ANOMALY",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "3_allowed_enums",
+      "checked_rows": 20269,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "4_date_ordering",
+      "checked_rows": 1188,
+      "expected_anomaly_count": 5,
+      "failure_count": 5,
+      "sample_failures": [
+        {
+          "issue_type": "PROMISE_DATE_BEFORE_ORDER_DATE",
+          "reason": "promise date before order date",
+          "record_id": "PD-EDGE-0020261022-000001",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "PROMISE_DATE_BEFORE_ORDER_DATE",
+          "reason": "promise date before order date",
+          "record_id": "PD-EDGE-0020261022-000002",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "PROMISE_DATE_BEFORE_ORDER_DATE",
+          "reason": "promise date before order date",
+          "record_id": "PD-EDGE-0020261022-000003",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "PROMISE_DATE_BEFORE_ORDER_DATE",
+          "reason": "promise date before order date",
+          "record_id": "PD-EDGE-0020261022-000004",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "PROMISE_DATE_BEFORE_ORDER_DATE",
+          "reason": "promise date before order date",
+          "record_id": "PD-EDGE-0020261022-000005",
+          "table": "promise_dates"
+        }
+      ],
+      "status": "EXPECTED_ANOMALY",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "5_arithmetic_reconciliation",
+      "checked_rows": 2159,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "6_lifecycle_transitions",
+      "checked_rows": 2453,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "7_duplicate_checks",
+      "checked_rows": 1750,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "8_id_format_checks",
+      "checked_rows": 9353,
+      "expected_anomaly_count": 5,
+      "failure_count": 5,
+      "sample_failures": [
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "child id does not embed ack_id",
+          "record_id": "AL-EDGE-0020261022-000001",
+          "related_ids": [
+            "ACK-PO-2026-000112-01"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "child id does not embed ack_id",
+          "record_id": "AL-EDGE-0020261022-000002",
+          "related_ids": [
+            "ACK-PO-2026-000058-04"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "child id does not embed ack_id",
+          "record_id": "AL-EDGE-0020261022-000003",
+          "related_ids": [
+            "ACK-PO-2026-000109-01"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "child id does not embed ack_id",
+          "record_id": "AL-EDGE-0020261022-000004",
+          "related_ids": [
+            "ACK-PO-2026-000119-01"
+          ],
+          "table": "acknowledgement_lines"
+        },
+        {
+          "issue_type": "ACK_WRONG_PO_LINE",
+          "reason": "child id does not embed ack_id",
+          "record_id": "AL-EDGE-0020261022-000005",
+          "related_ids": [
+            "ACK-PO-2026-000076-01"
+          ],
+          "table": "acknowledgement_lines"
+        }
+      ],
+      "status": "EXPECTED_ANOMALY",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "9_revision_history",
+      "checked_rows": 2002,
+      "expected_anomaly_count": 5,
+      "failure_count": 5,
+      "sample_failures": [
+        {
+          "issue_type": "STALE_REVISION_OVERWRITE",
+          "reason": "older promise revision is current while a newer revision exists",
+          "record_id": "PD-ACK-PO-2026-000097-01-02",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "STALE_REVISION_OVERWRITE",
+          "reason": "older promise revision is current while a newer revision exists",
+          "record_id": "PD-ACK-PO-2026-000097-01-03",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "STALE_REVISION_OVERWRITE",
+          "reason": "older promise revision is current while a newer revision exists",
+          "record_id": "PD-ACK-PO-2026-000097-01-04",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "STALE_REVISION_OVERWRITE",
+          "reason": "older promise revision is current while a newer revision exists",
+          "record_id": "PD-ACK-PO-2026-000097-01-05",
+          "table": "promise_dates"
+        },
+        {
+          "issue_type": "STALE_REVISION_OVERWRITE",
+          "reason": "older promise revision is current while a newer revision exists",
+          "record_id": "PD-ACK-PO-2026-000097-01-06",
+          "table": "promise_dates"
+        }
+      ],
+      "status": "EXPECTED_ANOMALY",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "10_approval_before_apply",
+      "checked_rows": 1114,
+      "expected_anomaly_count": 5,
+      "failure_count": 5,
+      "sample_failures": [
+        {
+          "issue_type": "UNAPPROVED_CHANGE_UPDATES_PLAN",
+          "reason": "change-sourced plan lacks approval at required level",
+          "record_id": "IP-PO-2026-000014-L04-02",
+          "related_ids": [
+            "CHG-PO-2026-000014-000001"
+          ],
+          "table": "inventory_plans"
+        },
+        {
+          "issue_type": "UNAPPROVED_CHANGE_UPDATES_PLAN",
+          "reason": "change-sourced plan lacks approval at required level",
+          "record_id": "IP-PO-2026-000089-L05-02",
+          "related_ids": [
+            "CHG-PO-2026-000089-000001"
+          ],
+          "table": "inventory_plans"
+        },
+        {
+          "issue_type": "UNAPPROVED_CHANGE_UPDATES_PLAN",
+          "reason": "change-sourced plan lacks approval at required level",
+          "record_id": "IP-PO-2026-000142-L04-02",
+          "related_ids": [
+            "CHG-PO-2026-000142-000001"
+          ],
+          "table": "inventory_plans"
+        },
+        {
+          "issue_type": "UNAPPROVED_CHANGE_UPDATES_PLAN",
+          "reason": "change-sourced plan lacks approval at required level",
+          "record_id": "IP-PO-2026-000121-L02-02",
+          "related_ids": [
+            "CHG-PO-2026-000121-000001"
+          ],
+          "table": "inventory_plans"
+        },
+        {
+          "issue_type": "UNAPPROVED_CHANGE_UPDATES_PLAN",
+          "reason": "change-sourced plan lacks approval at required level",
+          "record_id": "IP-PO-2026-000094-L02-02",
+          "related_ids": [
+            "CHG-PO-2026-000094-000001"
+          ],
+          "table": "inventory_plans"
+        }
+      ],
+      "status": "EXPECTED_ANOMALY",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "11_downstream_impact",
+      "checked_rows": 86,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "12_acknowledgement_status_consistency",
+      "checked_rows": 214,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "13_ground_truth_coverage",
+      "checked_rows": 145,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    },
+    {
+      "check_name": "14_input_label_leakage",
+      "checked_rows": 21,
+      "expected_anomaly_count": 0,
+      "failure_count": 0,
+      "sample_failures": [],
+      "status": "PASS",
+      "unknown_failure_count": 0
+    }
+  ],
+  "overall_status": "PASS",
+  "summary": {
+    "check_count": 14,
+    "expected_anomaly_checks": 5,
+    "failed": 0,
+    "passed": 9
+  }
+}

@@ -316,39 +316,98 @@ def _inject_promise_before_order(frames: dict[str, pd.DataFrame], count: int, rn
 
 def _inject_stale_revisions(frames: dict[str, pd.DataFrame], count: int, rng: Generator,
                             ground_truth: list[dict[str, Any]]) -> int:
+    """Mark an older promise or plan revision effective, retaining exact counts.
+
+    Most seeds provide enough multi-revision PromiseDate lines. If a seed has fewer
+    candidates than configured, existing multi-version InventoryPlan histories are
+    used as the documented alternative: the older plan remains effective while the
+    newest version is incorrectly superseded by it. No unrelated records are added.
+    """
+    if count <= 0:
+        return 0
     promises = frames["promise_dates"]
-    candidates: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
-    for line_id, group in promises.loc[~promises["promise_date_id"].astype(str).str.startswith("PD-EDGE-")].groupby("po_line_id", sort=True):
-        if group["revision_no"].nunique() < 2:
-            continue
+    promise_candidates: list[tuple[str, str, dict[str, Any], dict[str, Any]]] = []
+    normal_promises = promises.loc[~promises["promise_date_id"].astype(str).str.startswith("PD-EDGE-")]
+    promise_revision_counts = normal_promises.groupby("po_line_id", sort=False)["revision_no"].nunique()
+    multi_promise_lines = set(promise_revision_counts.loc[promise_revision_counts.ge(2)].index.astype(str))
+    eligible_promises = normal_promises.loc[normal_promises["po_line_id"].astype(str).isin(multi_promise_lines)]
+    for line_id, group in eligible_promises.groupby("po_line_id", sort=True):
         ordered = group.sort_values(["revision_no", "created_at"])
         older, newer = ordered.iloc[0].to_dict(), ordered.iloc[-1].to_dict()
-        if int(older["revision_no"]) >= int(newer["revision_no"]):
-            continue
-        candidates.append((str(line_id), older, newer))
+        if int(older["revision_no"]) < int(newer["revision_no"]):
+            promise_candidates.append(("promise", str(line_id), older, newer))
+
+    candidates = list(promise_candidates)
     if len(candidates) < count:
-        raise ValueError(f"configured STALE_REVISION_OVERWRITE count={count}, only {len(candidates)} multi-revision PO lines exist")
-    order = rng.permutation(len(candidates))[:count]
-    for n in order:
-        line_id, older, newer = candidates[int(n)]
-        old_idx = _idx_by_value(promises, "promise_date_id", older["promise_date_id"])
-        new_idx = _idx_by_value(promises, "promise_date_id", newer["promise_date_id"])
-        promises.at[old_idx, "status"] = "CURRENT"
-        promises.at[old_idx, "superseded_by"] = None
-        promises.at[old_idx, "issue_type"] = "STALE_REVISION_OVERWRITE"
-        promises.at[old_idx, "ground_truth"] = True
-        promises.at[new_idx, "status"] = "SUPERSEDED"
-        promises.at[new_idx, "superseded_by"] = older["promise_date_id"]
-        ground_truth.append(_gt(
-            "PromiseDate", older["promise_date_id"], "STALE_REVISION_OVERWRITE",
-            "newer revision must win; restore the highest revision_no as CURRENT and supersede the older revision",
-            {"po_id": older["po_id"], "po_line_id": line_id, "effective_promise_date_id": older["promise_date_id"],
-             "stale_revision_no": int(older["revision_no"]), "newer_promise_date_id": newer["promise_date_id"],
-             "newer_revision_no": int(newer["revision_no"])},
-            "HIGH", "An earlier timestamp/lower revision is incorrectly marked CURRENT while a newer revision exists.",
-        ))
+        plans = frames["inventory_plans"]
+        labelled_lines = set(plans.loc[plans.get("issue_type", pd.Series(index=plans.index, dtype=object)).notna(), "po_line_id"].astype(str))
+        plan_revision_counts = plans.groupby("po_line_id", sort=False)["plan_version"].nunique()
+        multi_plan_lines = set(plan_revision_counts.loc[plan_revision_counts.ge(2)].index.astype(str)) - labelled_lines
+        eligible_plans = plans.loc[plans["po_line_id"].astype(str).isin(multi_plan_lines)]
+        for line_id, group in eligible_plans.groupby("po_line_id", sort=True):
+            ordered = group.sort_values(["plan_version", "created_at"])
+            older, newer = ordered.iloc[-2].to_dict(), ordered.iloc[-1].to_dict()
+            if int(older["plan_version"]) < int(newer["plan_version"]):
+                candidates.append(("plan", str(line_id), older, newer))
+    if len(candidates) < count:
+        raise ValueError(
+            f"configured STALE_REVISION_OVERWRITE count={count}, only {len(candidates)} eligible PromiseDate/InventoryPlan histories exist"
+        )
+    # Guarantee use of existing promise history first, then fall back to plan history
+    # if this seed has fewer PromiseDate candidates than the configured count. Target
+    # selection within each cohort is randomized reproducibly from the injected RNG.
+    promise_order = rng.permutation(len(promise_candidates))
+    selected = [promise_candidates[int(i)] for i in promise_order[:min(count, len(promise_candidates))]]
+    remaining = count - len(selected)
+    if remaining:
+        plan_candidates = [candidate for candidate in candidates if candidate[0] == "plan"]
+        plan_order = rng.permutation(len(plan_candidates))
+        selected.extend(plan_candidates[int(i)] for i in plan_order[:remaining])
+
+    injected = 0
+    promise_row_index = {str(value): idx for idx, value in promises["promise_date_id"].items()}
+    plan_row_index = {str(value): idx for idx, value in frames["inventory_plans"]["inventory_plan_id"].items()}
+    for kind, line_id, older, newer in selected:
+        if kind == "promise":
+            old_idx = promise_row_index.get(str(older["promise_date_id"]))
+            new_idx = promise_row_index.get(str(newer["promise_date_id"]))
+            promises.at[old_idx, "status"] = "CURRENT"
+            promises.at[old_idx, "superseded_by"] = None
+            promises.at[old_idx, "issue_type"] = "STALE_REVISION_OVERWRITE"
+            promises.at[old_idx, "ground_truth"] = True
+            promises.at[new_idx, "status"] = "SUPERSEDED"
+            promises.at[new_idx, "superseded_by"] = older["promise_date_id"]
+            ground_truth.append(_gt(
+                "PromiseDate", older["promise_date_id"], "STALE_REVISION_OVERWRITE",
+                "newer revision must win; restore the highest revision_no as CURRENT and supersede the older revision",
+                {"po_id": older["po_id"], "po_line_id": line_id,
+                 "effective_promise_date_id": older["promise_date_id"], "stale_revision_no": int(older["revision_no"]),
+                 "newer_promise_date_id": newer["promise_date_id"], "newer_revision_no": int(newer["revision_no"])},
+                "HIGH", "An earlier timestamp/lower revision is incorrectly marked CURRENT while a newer revision exists.",
+            ))
+        else:
+            plans = frames["inventory_plans"]
+            old_idx = plan_row_index.get(str(older["inventory_plan_id"]))
+            new_idx = plan_row_index.get(str(newer["inventory_plan_id"]))
+            plans.at[old_idx, "is_effective"] = 1
+            plans.at[old_idx, "status"] = "ACTIVE"
+            plans.at[old_idx, "superseded_by"] = None
+            plans.at[old_idx, "issue_type"] = "STALE_REVISION_OVERWRITE"
+            plans.at[old_idx, "ground_truth"] = True
+            plans.at[new_idx, "is_effective"] = 0
+            plans.at[new_idx, "status"] = "SUPERSEDED"
+            plans.at[new_idx, "superseded_by"] = older["inventory_plan_id"]
+            ground_truth.append(_gt(
+                "InventoryPlan", older["inventory_plan_id"], "STALE_REVISION_OVERWRITE",
+                "newer plan version must win; restore the highest plan_version as effective",
+                {"po_id": older["po_id"], "po_line_id": line_id,
+                 "effective_inventory_plan_id": older["inventory_plan_id"], "stale_plan_version": int(older["plan_version"]),
+                 "newer_inventory_plan_id": newer["inventory_plan_id"], "newer_plan_version": int(newer["plan_version"])},
+                "HIGH", "An older InventoryPlan version is effective while a newer version exists.",
+            ))
+        injected += 1
     frames["promise_dates"] = promises
-    return int(count)
+    return injected
 
 
 def _append_expected_decisions(frames: Mapping[str, pd.DataFrame], thresholds: Mapping[str, Any],
@@ -436,8 +495,13 @@ def inject_labelled_edge_cases(frames: dict[str, pd.DataFrame], cfg: Mapping[str
                 def scrub(raw: Any) -> Any:
                     if _is_missing(raw):
                         return raw
+                    # Most event snapshots never contained labels. Avoid reparsing
+                    # every large JSON cell at full scale; parse only candidates.
+                    text = str(raw)
+                    if '"issue_type"' not in text and '"ground_truth"' not in text and '"boundary"' not in text:
+                        return raw
                     try:
-                        data = json.loads(str(raw))
+                        data = json.loads(text)
                     except (ValueError, TypeError):
                         return raw
                     def walk(obj: Any) -> Any:
